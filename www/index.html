@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#173f35">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Tripper Note</title>
+<link rel="stylesheet" href="css/style.css?v=258B31">
+<style id="b124-lodging-field-hotfix">
+/* v2.5.8-B.1.2.4: hard-lock lodging date/time proportions on iOS WKWebView. */
+.lodging-modal-fields .lodging-date-grid{display:flex!important;grid-template-columns:none!important;gap:8px!important;width:100%!important;min-width:0!important;max-width:100%!important;overflow:hidden!important;}
+.lodging-modal-fields .lodging-date-grid>.lodging-picker-field{box-sizing:border-box!important;min-width:0!important;max-width:none!important;overflow:hidden!important;margin-bottom:10px!important;}
+.lodging-modal-fields .lodging-date-grid>.lodging-picker-field:first-child{flex:0 0 calc(55% - 4px)!important;width:calc(55% - 4px)!important;}
+.lodging-modal-fields .lodging-date-grid>.lodging-picker-field:last-child{flex:0 0 calc(45% - 4px)!important;width:calc(45% - 4px)!important;}
+.lodging-modal-fields .lodging-picker-shell{display:flex!important;width:100%!important;min-width:0!important;max-width:100%!important;height:46px!important;overflow:hidden!important;box-sizing:border-box!important;}
+.lodging-modal-fields .lodging-native-picker{position:absolute!important;left:0!important;top:0!important;width:100%!important;height:100%!important;min-width:0!important;max-width:100%!important;opacity:0!important;overflow:hidden!important;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="safe-header editorial-header">
+    <div class="brand-lockup">
+      <div>
+        <div class="brand-title">Tripper Note</div>
+        <div class="brand-tagline">旅で、日常をやさしく変えていく。</div>
+      </div>
+      <button class="calendar-button" aria-label="カレンダー" onclick="showToast('カレンダーは次工程で実装します')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v3M17 2v3M3.5 9h17M5.5 4.5h13a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    <section id="trips" class="screen">
+      <div class="list-header">
+        <h2 class="section-title no-margin">旅行</h2>
+        <button class="link-btn" onclick="openNewTripEditor()">＋ 旅行を追加</button>
+      </div>
+      <p class="section-sub">複数の旅行をこの端末に保存できます。</p>
+      <div id="tripList"></div>
+      <div class="coming">v2.5.8-B.3.1では、場所名の自動補完に加え、未確定の場所も安全に保存できます。</div>
+    </section>
+
+    <section id="record" class="screen">
+      <h2 class="section-title">記録</h2>
+      <p class="section-sub">Time Diary / START / FINは次工程で本格実装します。</p>
+      <div class="card">
+        <div class="time">QUICK NOTE</div><div class="title">旅メモ</div>
+        <div class="desc">現在は簡単なメモのみ端末内に保存できます。</div>
+        <textarea id="quickNote" class="note-box" placeholder="例：カフェが想像以上によかった。"></textarea>
+        <div class="spacer-8"></div><button class="btn nav full" onclick="saveNote()">保存する</button>
+        <div id="noteSaved" class="small note-status"></div>
+      </div>
+    </section>
+
+    <section id="home" class="screen active editorial-home">
+      <div id="homeMagazineHero" class="magazine-hero"></div>
+      <div class="editorial-section-head"><span>NEXT</span><button id="homeItineraryBtn" class="editorial-link">すべて見る</button></div>
+      <div class="card next editorial-next" id="homeNextCard"></div>
+      <div class="card compact editorial-flow-card">
+        <div class="list-header"><div class="title">このあとの予定</div><button class="editorial-link" onclick="document.getElementById('homeItineraryBtn').click()">すべて見る</button></div>
+        <div id="homeFlow"></div>
+      </div>
+      <div id="transportBookingCard" class="card transport-card hidden"></div>
+      <div class="editorial-quote"><div>旅は、きっと、</div><div>日常をやさしく変えていく。</div><small>A SMALL TRIP MAKES A RICHER YOU.</small></div>
+      <div class="home-meta-hidden"><span id="homeHeading"></span><span id="homePhaseValue"></span><span id="homePhaseDate"></span><span id="homePlanName"></span></div>
+    </section>
+
+    <section id="spots" class="screen">
+      <h2 class="section-title">スポット</h2>
+      <p class="section-sub">現在地周辺の立ち寄り先を探すための入口です。</p>
+      <div class="category-grid">
+        <button class="category" onclick="openNearby('観光地')"><span class="cat-ico">○</span>観光</button>
+        <button class="category" onclick="openNearby('人気 飲食店')"><span class="cat-ico">○</span>グルメ</button>
+        <button class="category" onclick="openNearby('カフェ')"><span class="cat-ico">○</span>カフェ</button>
+        <button class="category" onclick="openNearby('コンビニ')"><span class="cat-ico">○</span>コンビニ</button>
+        <button class="category" onclick="openNearby('ガソリンスタンド')"><span class="cat-ico">○</span>ガソリン</button>
+        <button class="category" onclick="openNearby('ホテル 宿')"><span class="cat-ico">○</span>宿</button>
+      </div>
+      <div class="notice">現在地取得・アプリ内マップは次工程です。</div>
+    </section>
+
+    <section id="profile" class="screen">
+      <h2 class="section-title">マイページ</h2>
+      <p class="section-sub">アプリ全体の設定を保存します。</p>
+      <div class="card">
+        <div class="time">NAVIGATION</div><div class="title">ナビゲーション設定</div>
+        <div class="desc">移動方法ごとに、予定カードから開くナビアプリを指定します。</div>
+        <div class="settings-list">
+          <label>車<select id="navPref_car" onchange="changeNavPreference('car',this.value)"></select></label>
+          <label>徒歩<select id="navPref_walk" onchange="changeNavPreference('walk',this.value)"></select></label>
+          <label>電車<select id="navPref_train" onchange="changeNavPreference('train',this.value)"></select></label>
+        </div>
+      </div>
+      <div class="card"><div class="title">アカウント</div><div class="desc">ログイン・共有・共同編集は将来実装します。</div></div>
+      <div class="card"><div class="title">Tripper Note v2.5.8-B.3.1</div><div class="desc">Phase 3 Hotfix。場所未確定保存と場所変更時の地図詳細同期を追加しました。</div></div>
+    </section>
+
+    <section id="tripDetail" class="screen">
+      <div class="list-header">
+        <h2 class="section-title no-margin" id="tripDetailTitle">旅程</h2>
+        <button class="link-btn" onclick="showScreen('trips','trips')">旅行一覧へ</button>
+      </div>
+      <div class="detail-toolbar"><button class="btn ghost" onclick="openTripEditor('itinerary-edit')">旅行を編集</button></div>
+      <div id="tripDayChips" class="chip-row day-chips"></div>
+      <div id="tripDayContent"></div>
+    </section>
+  </main>
+
+  <nav class="bottom floating-dock" aria-label="メインナビゲーション">
+    <div class="bottom-inner">
+      <button class="nav-btn" data-tab="trips" onclick="showScreen('trips','trips')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7M5 7h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm4 0v14m6-14v14"/></svg></span><span>旅行</span></button>
+      <button class="nav-btn" data-tab="record" onclick="showScreen('record','record')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm8 0v4h4M8 11h6M8 15h6"/></svg></span><span>記録</span></button>
+      <button class="nav-btn home-tab active" data-tab="home" onclick="showScreen('home','home')"><span class="home-icon-wrap"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7v9H6v-9Zm5 9v-6h6v6"/></svg></span></span><span>ホーム</span></button>
+      <button class="nav-btn" data-tab="spots" onclick="showScreen('spots','spots')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.2 6-11a6 6 0 1 0-12 0c0 5.8 6 11 6 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg></span><span>スポット</span></button>
+      <button class="nav-btn" data-tab="profile" onclick="showScreen('profile','profile')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0"/></svg></span><span>マイページ</span></button>
+    </div>
+  </nav>
+</div>
+
+<!-- Trip editor / creator -->
+<div id="editorModal" class="modal" aria-hidden="true">
+  <div class="modal-sheet">
+    <div class="modal-safe-top"></div>
+    <div class="modal-header"><div><div class="eyebrow dark" id="editorModeLabel">EDIT TRIP</div><h2 id="editorTitle">旅行を編集</h2></div><button class="modal-close" onclick="closeTripEditor()">×</button></div>
+    <div class="modal-body">
+      <section id="basic" class="edit-section">
+        <h3>基本情報</h3>
+        <label>旅行名<input id="editTripName" type="text"></label>
+        <div class="trip-date-grid">
+          <label class="trip-date-field"><span>開始日</span><span class="trip-date-shell"><span id="editStartDateDisplay" class="trip-date-value"></span><input id="editStartDate" class="trip-native-date" type="date" oninput="syncTripDateDisplays();updateEditorTripDates()" onchange="syncTripDateDisplays();updateEditorTripDates()"></span></label>
+          <label class="trip-date-field"><span>終了日</span><span class="trip-date-shell"><span id="editEndDateDisplay" class="trip-date-value"></span><input id="editEndDate" class="trip-native-date" type="date" oninput="syncTripDateDisplays();updateEditorTripDates()" onchange="syncTripDateDisplays();updateEditorTripDates()"></span></label>
+        </div>
+      </section>
+
+      <section class="edit-section">
+        <h3>編集するDAY</h3>
+        <div id="editorDayTabs" class="chip-row editor-day-tabs"></div>
+      </section>
+
+      <section id="lodging-editor" class="edit-section lodging-summary-section">
+        <button type="button" class="lodging-summary-button" onclick="openLodgingEditorModal()" aria-label="宿泊先を編集">
+          <div class="lodging-summary-label">
+            <span>STAY</span>
+            <strong id="lodgingEditorTitle">DAY 1 宿泊先</strong>
+          </div>
+          <div id="lodgingEditorSummary" class="lodging-editor-summary"></div>
+          <span class="lodging-summary-chevron" aria-hidden="true">›</span>
+        </button>
+      </section>
+
+      <section id="itinerary-edit" class="edit-section itinerary-editor-section">
+        <div class="edit-section-title"><div><h3>旅程・プラン</h3><div class="editor-help">各DAY最大4プラン。予定時刻は専用の時間入力を使います。</div></div></div>
+        <div id="planEditorContent"></div>
+        <button id="addPlanBtn" class="btn ghost full" onclick="addPlanEditor()">＋ プランを追加</button>
+      </section>
+
+      <button id="tripDeleteBtn" class="danger-wide" onclick="deleteCurrentTrip()">この旅行を削除</button>
+      <button class="reset-link" onclick="resetAllData()">Tripper Noteデータを初期状態に戻す</button>
+      <div class="modal-bottom-space"></div>
+    </div>
+    <div class="modal-actions"><button class="btn secondary" onclick="closeTripEditor()">キャンセル</button><button class="btn nav" onclick="saveTripEditor()">保存</button></div>
+  </div>
+</div>
+
+<!-- Lodging editor modal v2.5.8-B.1.2.3 -->
+<div id="lodgingEditorModal" class="modal lodging-editor-modal" aria-hidden="true">
+  <div class="lodging-editor-dialog">
+    <div class="lodging-editor-header">
+      <div>
+        <div class="eyebrow dark">STAY</div>
+        <h2 id="lodgingEditorModalTitle">宿泊先を編集</h2>
+      </div>
+      <button class="modal-close" onclick="closeLodgingEditorModal()" aria-label="閉じる">×</button>
+    </div>
+    <div class="lodging-editor-body">
+      <div class="lodging-editor-enable-row">
+        <div><strong>宿泊先を登録</strong><small>このDAYに宿泊先を設定します。</small></div>
+        <label class="switch-label lodging-modal-switch"><input id="lodgingEnabled" type="checkbox" onchange="toggleLodgingFields()">登録する</label>
+      </div>
+      <div id="lodgingFields" class="lodging-modal-fields">
+        <label>宿泊先名<input id="lodgingName" type="text" placeholder="例：White Bird"></label>
+        <label>住所<input id="lodgingAddress" type="text"></label>
+        <div class="form-grid lodging-date-grid">
+          <label class="lodging-picker-field"><span>チェックイン日</span><span class="lodging-picker-shell"><span id="lodgingCheckInDateDisplay" class="lodging-picker-value"></span><input id="lodgingCheckInDate" class="lodging-native-picker" type="date" oninput="syncLodgingPickerDisplays()"></span></label>
+          <label class="lodging-picker-field"><span>時刻</span><span class="lodging-picker-shell"><span id="lodgingCheckInTimeDisplay" class="lodging-picker-value"></span><input id="lodgingCheckInTime" class="lodging-native-picker" type="time" oninput="syncLodgingPickerDisplays()"></span></label>
+        </div>
+        <div class="form-grid lodging-date-grid">
+          <label class="lodging-picker-field"><span>チェックアウト日</span><span class="lodging-picker-shell"><span id="lodgingCheckOutDateDisplay" class="lodging-picker-value"></span><input id="lodgingCheckOutDate" class="lodging-native-picker" type="date" oninput="syncLodgingPickerDisplays()"></span></label>
+          <label class="lodging-picker-field"><span>時刻</span><span class="lodging-picker-shell"><span id="lodgingCheckOutTimeDisplay" class="lodging-picker-value"></span><input id="lodgingCheckOutTime" class="lodging-native-picker" type="time" oninput="syncLodgingPickerDisplays()"></span></label>
+        </div>
+        <div class="form-grid"><label>部屋番号<input id="lodgingRoom" type="text" placeholder="例：203"></label><label>予約番号<input id="lodgingReservation" type="text"></label></div>
+        <label>駐車場・入口メモ<input id="lodgingParking" type="text"></label>
+        <label>Google Maps URL<input id="lodgingMaps" type="url" placeholder="https://maps.app.goo.gl/..."></label>
+        <label>宿泊メモ<textarea id="lodgingMemo"></textarea></label>
+      </div>
+    </div>
+    <div class="lodging-editor-actions">
+      <button class="btn secondary" onclick="closeLodgingEditorModal()">キャンセル</button>
+      <button class="btn nav" onclick="saveLodgingEditorModal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Candidate modal -->
+<div id="candidateModal" class="modal candidate-modal" aria-hidden="true">
+  <div class="candidate-dialog">
+    <div class="candidate-modal-header">
+      <div><div class="eyebrow dark">OPTIONS</div><h2 id="candidateModalTitle">候補</h2></div>
+      <div class="candidate-header-right"><span id="candidateCount" class="count-pill">1/4</span><button class="modal-close" onclick="closeCandidateModal()">×</button></div>
+    </div>
+    <div class="candidate-modal-body">
+      <div id="candidateList"></div>
+      <div class="candidate-modal-actions"><button id="candidateAddBtn" class="btn ghost" onclick="showCandidateForm('add')">＋ 候補を追加</button><button id="slotShuffleBtn" class="btn nav" onclick="shuffleCurrentSlot()">この予定枠をシャッフル</button></div>
+      <section id="candidateForm" class="candidate-form">
+        <div class="candidate-form-head"><h3 id="candidateFormTitle">候補を追加</h3><button class="tiny-edit" onclick="hideCandidateForm()">閉じる</button></div>
+        <label>表示名<input id="candidateName" type="text" placeholder="例：ELOISE's Café"></label>
+        <label>目的地<input id="candidateDestination" type="text" placeholder="施設名・場所名"></label>
+        <label>すること<input id="candidateActivity" type="text" placeholder="例：カフェ、ランチ、散策"></label>
+        <label>説明<textarea id="candidateDescription"></textarea></label>
+        <label>移動手段<select id="candidateTransport"><option value="car">車</option><option value="walk">徒歩</option><option value="train">電車</option><option value="none">移動なし</option></select></label>
+        <label>Google Maps URL<input id="candidateMaps" type="url" placeholder="https://maps.app.goo.gl/..."></label>
+        <button class="btn secondary full compact-btn" onclick="autoFillCandidateCoords()">目的地名・住所から位置情報を取得</button>
+        <div id="coordHint" class="coord-hint"></div>
+        <label>住所<input id="candidateAddress" type="text"></label>
+        <div class="form-grid"><label>緯度<input id="candidateLat" type="number" step="any"></label><label>経度<input id="candidateLon" type="number" step="any"></label></div>
+        <input id="candidateStation" type="hidden">
+        <label>メモ<textarea id="candidateMemo"></textarea></label>
+        <button class="btn nav full" onclick="saveCandidateForm()">候補を保存</button>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Unified schedule editor v2.5.8-B.1 -->
+<div id="scheduleEditorModal" class="modal schedule-editor-modal" aria-hidden="true">
+  <div class="schedule-editor-dialog">
+    <div class="schedule-editor-header">
+      <div>
+        <div class="eyebrow dark">SCHEDULE</div>
+        <h2 id="scheduleEditorTitle">予定を追加</h2>
+      </div>
+      <button id="scheduleEditorClose" class="modal-close" onclick="closeScheduleEditor()" aria-label="閉じる">×</button>
+    </div>
+    <div class="schedule-editor-body">
+      <div class="schedule-editor-intro">予定に必要な項目だけを先に入力します。地図URLや座標は「詳細」にまとめています。</div>
+
+      <label class="schedule-field">すること
+        <input id="scheduleActivity" type="text" placeholder="例：ランチ、散策、チェックイン" aria-describedby="scheduleActivityError">
+        <span id="scheduleActivityError" class="schedule-field-error" aria-live="polite"></span>
+      </label>
+
+      <div class="schedule-time-grid">
+        <label class="schedule-field">
+          <span class="schedule-field-label">開始</span>
+          <input id="scheduleStart" type="time">
+        </label>
+        <label class="schedule-field">
+          <span class="schedule-field-label">終了 <em>任意</em></span>
+          <input id="scheduleEnd" type="time">
+        </label>
+      </div>
+      <div id="scheduleTimeError" class="schedule-field-error schedule-grid-error" aria-live="polite"></div>
+
+      <div class="schedule-field schedule-place-field">
+        <div class="schedule-place-heading">
+          <span>場所</span>
+          <label class="schedule-unresolved-toggle"><input id="schedulePlaceUnresolved" type="checkbox"><span>場所未確定</span></label>
+        </div>
+        <input id="schedulePlace" type="text" placeholder="例：ふらここ食堂">
+      </div>
+      <div id="scheduleLocationStatus" class="schedule-location-status" aria-live="polite"></div>
+
+      <label class="schedule-field">移動方法
+        <select id="scheduleTransport">
+          <option value="car">車</option>
+          <option value="walk">徒歩</option>
+          <option value="train">電車</option>
+          <option value="none">移動なし</option>
+        </select>
+      </label>
+
+      <label class="schedule-field">メモ <span>任意</span>
+        <textarea id="scheduleMemo" placeholder="予約内容、持ち物、補足など"></textarea>
+      </label>
+
+      <details id="scheduleDetails" class="schedule-details">
+        <summary>詳細</summary>
+        <div class="schedule-details-body">
+          <label class="schedule-field">Google Maps URL
+            <input id="scheduleMaps" type="url" placeholder="https://maps.app.goo.gl/...">
+          </label>
+          <label class="schedule-field">住所
+            <input id="scheduleAddress" type="text">
+          </label>
+          <div class="schedule-time-grid">
+            <label class="schedule-field">緯度
+              <input id="scheduleLat" type="number" step="any">
+            </label>
+            <label class="schedule-field">経度
+              <input id="scheduleLon" type="number" step="any">
+            </label>
+          </div>
+          <div id="scheduleCoordsError" class="schedule-field-error schedule-grid-error" aria-live="polite"></div>
+          <input id="scheduleStation" type="hidden">
+          <div class="schedule-b1-note">通常は入力不要です。場所名から住所・緯度経度・Google Maps URLを自動取得します。場所を特定できない場合だけ、Google Maps URLまたは住所を入力してください。</div>
+        </div>
+      </details>
+    </div>
+    <div class="schedule-editor-actions">
+      <button id="scheduleEditorCancel" class="btn secondary" onclick="closeScheduleEditor()">キャンセル</button>
+      <button id="scheduleEditorSave" class="btn nav" onclick="saveScheduleEditor()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- In-app camera: Camera Only / no photo library picker -->
+<div id="recordCameraModal" class="modal record-camera-modal" aria-hidden="true">
+  <div class="camera-stage camera-stage-a2">
+    <div class="camera-topbar camera-topbar-a2">
+      <div class="camera-role-pill"><span>TRIPPER NOTE</span><strong id="cameraRoleTitle">TIME DIARY</strong></div>
+    </div>
+    <div class="camera-viewfinder camera-viewfinder-a2">
+      <video id="recordCameraVideo" autoplay playsinline muted></video>
+      <div id="cameraLoading" class="camera-loading">カメラを起動しています…</div>
+    </div>
+    <div class="camera-bottom-bar camera-bottom-bar-a2">
+      <button class="camera-cancel-a2" onclick="closeInAppCamera()" aria-label="撮影をキャンセル">キャンセル</button>
+      <button id="cameraShutter" class="camera-shutter camera-shutter-a2" onclick="captureInAppPhoto()" aria-label="撮影"><span></span></button>
+      <button id="cameraFlipButton" class="camera-flip-a2" onclick="flipInAppCamera()" aria-label="前面・背面カメラを切り替える">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7.5a7 7 0 0 1 11.6 2.2"/><path d="M17 5.8l1.8 3.9-4.2.8"/><path d="M17 16.5A7 7 0 0 1 5.4 14.3"/><path d="M7 18.2l-1.8-3.9 4.2-.8"/></svg>
+      </button>
+      <div id="cameraFacingLabel" class="camera-facing-label-a2">背面カメラ</div>
+    </div>
+  </div>
+</div>
+
+<!-- Captured photo linker. Capture time is fixed at shutter time. -->
+<div id="recordDetailModal" class="modal record-modal" aria-hidden="true">
+  <div class="record-dialog record-linker-dialog">
+    <div class="record-modal-header">
+      <div>
+        <div class="eyebrow dark">PHOTO LINKER</div>
+        <h2 id="recordDetailTitle">写真を旅程に紐付ける</h2>
+      </div>
+      <button class="modal-close" onclick="closeCapturedRecordDetail()">×</button>
+    </div>
+    <div class="record-modal-body">
+      <div class="record-linker-lead">撮った写真に「予定・感想・代表写真」を紐付けます。撮影日時はシャッターを押した瞬間で固定されます。</div>
+      <div id="capturedRecordPreview" class="record-preview"></div>
+
+      <div class="captured-time-lock">
+        <div><span>CAPTURED AT</span><strong id="capturedRecordTime">--</strong></div>
+        <span class="time-lock-badge">LOCKED</span>
+      </div>
+
+      <section class="record-link-section">
+        <div class="record-link-section-head"><span>01</span><div><strong>予定に紐付ける</strong><small>旅行・DAY・予定枠を選択</small></div></div>
+        <label class="record-field">旅行<select id="capturedTripSelect" onchange="renderCapturedLinkSelectors()"></select></label>
+        <div class="form-grid">
+          <label class="record-field">DAY<select id="capturedDaySelect" onchange="renderCapturedLinkSelectors(true)"></select></label>
+          <label class="record-field">関連する予定<select id="capturedSlotSelect" onchange="syncCapturedPlaceFromSlot();updateCapturedCoverAvailability();updateCapturedLinkSummary()"></select></label>
+        </div>
+        <div id="capturedLinkSummary" class="captured-link-summary">予定に紐付けない</div>
+      </section>
+
+      <section class="record-link-section">
+        <div class="record-link-section-head"><span>02</span><div><strong>その瞬間を残す</strong><small>場所と感想を記録</small></div></div>
+        <label class="record-field">場所名<input id="capturedPlaceName" type="text" placeholder="例：吐竜の滝"></label>
+        <label class="record-field">その時の感想<textarea id="capturedComment" placeholder="その瞬間に思ったことを残す"></textarea></label>
+      </section>
+
+      <section class="record-link-section cover-link-section">
+        <div class="record-link-section-head"><span>03</span><div><strong>代表写真</strong><small>終了した予定カードの背景に使用</small></div></div>
+        <label id="capturedCoverRow" class="record-cover-toggle"><input id="capturedMakeCover" type="checkbox"> この写真を、この予定の代表写真にする</label>
+        <div class="cover-link-help">代表写真は「関連する予定」を選択した場合だけ設定できます。同じ予定に別の代表写真を設定すると、新しい写真に置き換わります。</div>
+      </section>
+
+      <div class="record-camera-policy">Camera Only · 写真ライブラリからの追加・画像アップロード・撮影日時の変更はできません。</div>
+      <div class="record-modal-actions">
+        <button class="btn secondary" onclick="closeCapturedRecordDetail()">破棄 / 閉じる</button>
+        <button class="btn nav" onclick="saveCapturedRecord()">Time Diaryに保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="saveToast" class="toast">✓ 保存しました</div>
+<script src="js/data.js?v=258B31"></script>
+<script src="js/storage.js?v=258B31"></script>
+<script src="js/navigation.js?v=258B31"></script>
+<script src="js/mediaStore.js?v=258B31"></script>
+<script src="js/app.js?v=258B31"></script>
+</body>
+</html>

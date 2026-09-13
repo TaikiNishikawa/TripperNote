@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Capacitor / generated build files
+ios/App/build/
+
+# Temporary files
+*.tmp
+*.swp
+
+# Local backups
+www_B1_1_backup/
