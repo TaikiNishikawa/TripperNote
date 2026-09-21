@@ -1,5 +1,5 @@
-/* Tripper Note v2.5.2 Stability - schema v4 */
-const SCHEMA_VERSION = 5;
+/* Tripper Note v2.6.0-B.3.2 Schedule Progression Core - schema v6 */
+const SCHEMA_VERSION = 6;
 const MAX_PLANS = 4;
 const MAX_CANDIDATES = 4;
 const NAV_APP_OPTIONS = {
@@ -43,7 +43,7 @@ const NAV_APP_OPTIONS = {
   ]
 };
 const DEFAULT_APP_DATA = {
-  "schemaVersion": 3,
+  "schemaVersion": 6,
   "activeTripId": "hokuto-2026-09",
   "settings": {
     "navigation": {

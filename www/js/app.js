@@ -2,7 +2,7 @@
    Focus: schema/migration, multiple trips, native date/time inputs, navigation preferences.
    Visual design intentionally stays close to v2.4.1 and will be redesigned separately.
 */
-let APP_DATA = loadAppDataV25();
+let APP_DATA = loadAppDataV26();
 let EDIT_DATA = null;
 let EDITOR_MODE = 'edit';
 let editingDay = 1;
@@ -10,6 +10,19 @@ let editingPlanDay = 1;
 let candidateContext = null;
 let candidateFormMode = null;
 let coverPhotoContext = null;
+
+/* Phase 4B.2 diagnostics. Timeline now accepts lightweight Text Blocks via Quick Record Bar. */
+if(typeof window!=='undefined'){
+  window.TripperV21Foundation={
+    version:'2.6.0-B.3.2',
+    schemaVersion:SCHEMA_VERSION,
+    inspect:()=>buildV21FoundationReport(APP_DATA),
+    validate:()=>validateV21Integrity(APP_DATA),
+    schedules:(tripId=null)=>getV21ScheduleProjection(APP_DATA,tripId),
+    timeline:(tripId=null)=>{ const trip=(APP_DATA?.trips||[]).find(t=>!tripId||t.id===tripId)||(tripId?null:getRecordTrip?.()); return trip?b1BuildTimelineSkeleton(trip):null; },
+    storage:()=>typeof coreStorageDiagnostics==='function'?coreStorageDiagnostics():Promise.resolve(null)
+  };
+}
 
 function escapeHtml(s=''){ return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
@@ -46,7 +59,7 @@ function slotTimeLabel(slot){
 function slotSortMinutes(slot){ return timeToMinutes(slot?.startTime||'23:59'); }
 function formatDateTime(date,time){ return [date?formatJP(date):'',time||''].filter(Boolean).join(' '); }
 
-function persistAppData(){ APP_DATA=normalizeAppData(APP_DATA); persistAppDataV25(APP_DATA); }
+function persistAppData(){ APP_DATA=normalizeAppData(APP_DATA); persistAppDataV26(APP_DATA); }
 function dataRoot(source='app'){ return source==='edit'&&EDIT_DATA?EDIT_DATA:APP_DATA; }
 function getTrip(source='app'){ const root=dataRoot(source); return root.trips.find(t=>t.id===root.activeTripId)||root.trips[0]||null; }
 function getTripById(id,source='app'){ return dataRoot(source).trips.find(t=>t.id===id)||null; }
@@ -463,7 +476,7 @@ function renderNavigationSettings(){
 }
 function changeNavPreference(mode,value){ setNavigationPreference(mode,value); renderHome(); renderTripDetail(); showToast('✓ ナビ設定を保存しました'); }
 
-function showToast(message){ const el=document.getElementById('saveToast'); el.textContent=message; el.classList.add('show'); clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>el.classList.remove('show'),1900); }
+function showToast(message,duration=1900){ const el=document.getElementById('saveToast'); el.textContent=message; el.classList.add('show'); clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>el.classList.remove('show'),duration); }
 function renderAll(){ renderHeader(); renderTrips(); renderHome(); renderTripDetail(); renderNavigationSettings(); }
 function preventAccidentalZoom(){ let lastTouchEnd=0; document.addEventListener('touchend',e=>{ const now=Date.now(); if(now-lastTouchEnd<=300) e.preventDefault(); lastTouchEnd=now; },{passive:false}); document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false}); }
 
@@ -675,8 +688,8 @@ function renderProfileScreen(){
           <div class="desc">共有しおり、共同編集、AIによる提案、AI chat による予定作成、Vlog 編集を見据えた土台です。</div>
         </div>
         <div class="card compact">
-          <div class="title">Tripper Note v2.5.8-B.3.1</div>
-          <div class="desc">Phase 3 Hotfix。場所未確定保存と、場所変更時の地図詳細情報の同期を追加したバージョンです。</div>
+          <div class="title">Tripper Note v2.6.0-B.3.4</div>
+          <div class="desc">Text Time Picker UX Hotfix。作成時刻から30分前まで、表示時刻を選択できます。</div>
         </div>
       </div>
     </div>`;
@@ -1666,10 +1679,19 @@ const V258A_BACKUP_KEY='tripperNoteBackupBeforeV258A';
 const V258A_MEDIA_URLS=new Set();
 
 function ensureV258ABackup(){
+  /* A.2: keep the safety backup, but move it out of localStorage so it cannot
+     consume the same small WebView quota as the live planner document. */
   try{
-    if(localStorage.getItem(V258A_BACKUP_KEY)) return;
-    const raw=localStorage.getItem(typeof STORAGE_KEY_V25!=='undefined'?STORAGE_KEY_V25:'tripperNoteDataV25');
-    if(raw) localStorage.setItem(V258A_BACKUP_KEY,raw);
+    const legacyKey=typeof V258A_LEGACY_BACKUP_KEY!=='undefined'?V258A_LEGACY_BACKUP_KEY:V258A_BACKUP_KEY;
+    const existingLocal=localStorage.getItem(legacyKey);
+    const liveRaw=localStorage.getItem(typeof STORAGE_KEY_V25!=='undefined'?STORAGE_KEY_V25:'tripperNoteDataV25');
+    const raw=existingLocal||liveRaw;
+    if(!raw) return;
+    if(typeof coreWriteBackupOnce==='function'){
+      coreWriteBackupOnce('pre-v258a-localstorage',raw).then(()=>{
+        try{ if(localStorage.getItem(legacyKey)!==null) localStorage.removeItem(legacyKey); }catch(_e){}
+      }).catch(err=>console.warn('v2.5.8-A Core DB backup skipped',err));
+    }
   }catch(err){ console.warn('v2.5.8-A backup skipped',err); }
 }
 
@@ -1907,19 +1929,394 @@ async function saveCapturedRecord(){
 }
 
 /* Full-quality timeline rendering: thumbnail first, then IndexedDB original. */
+function b1TimelineIsoTime(iso){
+  if(!iso) return '';
+  const d=new Date(iso); if(Number.isNaN(d.getTime())) return '';
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function b1TimelineStatusLabel(status){
+  return ({active:'NOW',extended:'延長中',completed:'完了',skipped:'スキップ',upcoming:'予定'})[status]||'予定';
+}
+function b1RecordKind(record){
+  return record?.kind||record?.role||'entry';
+}
+function b1RecordIsImage(record){
+  return record?.mediaType==='image'||!!record?.previewDataUrl||!!record?.dataUrl;
+}
+function b1RecordSortAt(record){
+  const raw=record?.capturedAt||record?.createdAt||'';
+  const t=raw?new Date(raw).getTime():NaN;
+  return Number.isFinite(t)?t:0;
+}
+function b1RecordDayNumber(trip,record){
+  const explicit=Number(record?.day);
+  if(Number.isInteger(explicit)&&trip?.days?.some(d=>d.day===explicit)) return explicit;
+  const raw=record?.capturedAt||record?.createdAt;
+  if(raw){
+    const d=new Date(raw);
+    if(!Number.isNaN(d.getTime())){
+      const key=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const found=trip?.days?.find(day=>day.date===key); if(found) return found.day;
+    }
+  }
+  return trip?.days?.[0]?.day||1;
+}
+function b1RecordMatchesSchedule(record,day,plan,slot){
+  if(!record||!slot) return false;
+  if(String(record.slotId||'')!==String(slot.id)) return false;
+  const recordDay=Number(record.day);
+  if(recordDay&&recordDay!==Number(day.day)) return false;
+  if(record.planId&&String(record.planId)!==String(plan.id)) return false;
+  return true;
+}
+
+/* =========================================================
+   v2.6.0-B.2 Phase 4B.2 Schedule Progression Core
+   Text facts stay strict: createdAt is immutable; timelineTime
+   defaults to now and may only be moved up to 30 min earlier.
+   ========================================================= */
+function b2CoreBlocks(){
+  APP_DATA.coreV21=APP_DATA.coreV21||{};
+  APP_DATA.coreV21.blocks=Array.isArray(APP_DATA.coreV21.blocks)?APP_DATA.coreV21.blocks:[];
+  return APP_DATA.coreV21.blocks;
+}
+function b2TripTextBlocks(trip){
+  return b2CoreBlocks().filter(block=>block?.type==='text'&&String(block.tripId||'')===String(trip?.id||''));
+}
+function b2BlockSortAt(block){
+  const raw=block?.timelineTime||block?.createdAt||'';
+  const t=raw?new Date(raw).getTime():NaN;
+  return Number.isFinite(t)?t:0;
+}
+function b2DayNumberForTime(trip,iso){
+  const d=new Date(iso||'');
+  if(Number.isNaN(d.getTime())) return null;
+  const key=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  return trip?.days?.find(day=>day.date===key)?.day||null;
+}
+function b2FindActiveScheduleRef(trip,now=new Date()){
+  const today=localDateKey(now);
+  const day=trip?.days?.find(d=>d.date===today); if(!day) return null;
+  const plan=getActivePlanFromTrip(trip,day.day); if(!plan) return null;
+  const candidates=(plan.slots||[]).filter(slot=>{
+    const status=slot?.v21?.status||slotStatus(trip,day.day,slot,now);
+    return status==='active'||status==='extended';
+  }).sort((a,b)=>slotSortMinutes(a)-slotSortMinutes(b));
+  const slot=candidates[0];
+  return slot?{day:day.day,planId:plan.id,slotId:slot.id}:null;
+}
+function b2CanQuickRecordNow(trip,now=new Date()){
+  if(!trip) return {ok:false,phase:'none',message:'旅行を選択してください。'};
+  const today=localDateKey(now);
+  if(today<trip.startDate) return {ok:false,phase:'before',message:'この旅行はまだ始まっていないため、今の記録は追加できません。'};
+  if(today>trip.endDate) return {ok:false,phase:'after',message:'この旅行は終了しているため、今の記録は追加できません。'};
+  return {ok:true,phase:'during'};
+}
+function b2QuickTextInput(){ return document.getElementById('b2QuickTextInput'); }
+function b2SyncQuickSendState(){
+  const input=b2QuickTextInput(),button=document.getElementById('b2QuickSend');
+  if(button) button.disabled=!input?.value?.trim();
+}
+function b2SubmitQuickText(){
+  const trip=getRecordTrip?.()||getHomeTrip()||getTrip();
+  const input=b2QuickTextInput(); const text=input?.value?.trim()||'';
+  if(!text) return;
+  const eligibility=b2CanQuickRecordNow(trip,new Date());
+  if(!eligibility.ok){ showToast(eligibility.message); return; }
+  const now=new Date(); const iso=now.toISOString(); const ref=b2FindActiveScheduleRef(trip,now);
+  const block={
+    id:uid('text'),tripId:trip.id,type:'text',text,createdAt:iso,timelineTime:iso,
+    day:b2DayNumberForTime(trip,iso),scheduleRef:ref?{...ref}:null,
+    displaySettings:{showTime:true},sortOrder:Date.now()
+  };
+  b2CoreBlocks().push(block);
+  persistAppData();
+  if(input) input.value='';
+  renderRecordScreen();
+  showToast(ref?'✓ 今の予定にメモを追加しました':'✓ 寄り道にメモを追加しました');
+}
+function b2QuickTextKeydown(event){
+  if(event.key==='Enter'&&!event.shiftKey){ event.preventDefault(); b2SubmitQuickText(); }
+}
+function b2OpenQuickAddMenu(){
+  showToast('＋メニュー：写真・動画Import / Free Canvas / Mapは後続Phaseで追加します');
+}
+function b2TimelineTimeMin(block){
+  const created=new Date(block?.createdAt||'');
+  if(Number.isNaN(created.getTime())) return '';
+  return new Date(created.getTime()-30*60000).toISOString();
+}
+function b2EditTextBlock(blockId){
+  const block=b2CoreBlocks().find(x=>x.id===blockId&&x.type==='text'); if(!block) return;
+  const currentText=block.text||'';
+  const next=prompt('テキストを編集',currentText);
+  if(next===null) return;
+  const trimmed=next.trim();
+  if(!trimmed){ showToast('空のテキストは保存できません'); return; }
+  block.text=trimmed;
+  persistAppData(); renderRecordScreen(); showToast('✓ テキストを更新しました');
+}
+/* B.3.4: keep exact timestamps separate from the minute-only picker labels.
+   Draft selection never touches the Block or the storage layer. */
+let B34_TEXT_TIME_PICKER=null;
+function b34BuildTextTimeOptions(block){
+  const createdMs=new Date(block?.createdAt||'').getTime();
+  if(!Number.isFinite(createdMs)) return [];
+  const currentMs=new Date(block.timelineTime||block.createdAt).getTime();
+  const options=Array.from({length:31},(_,minutesAgo)=>({timestamp:createdMs-minutesAgo*60000,minutesAgo,current:false}));
+  if(Number.isFinite(currentMs)&&currentMs>=createdMs-1800000&&currentMs<=createdMs){
+    const current=options.find(option=>option.timestamp===currentMs);
+    if(current) current.current=true;
+    else options.push({timestamp:currentMs,minutesAgo:null,current:true});
+  }
+  return options.sort((a,b)=>b.timestamp-a.timestamp);
+}
+function b34SameScheduleRef(a,b){
+  if(!a||!b) return !a&&!b;
+  return Number(a.day)===Number(b.day)&&String(a.planId||'')===String(b.planId||'')&&String(a.slotId||'')===String(b.slotId||'');
+}
+function b34TextTimeContext(block,activeRef){
+  return JSON.stringify({tripId:block.tripId,createdAt:block.createdAt,timelineTime:block.timelineTime,
+    day:block.day,scheduleRef:block.scheduleRef,
+    active:activeRef?{day:activeRef.day,planId:activeRef.planId,slotId:activeRef.slotId,actualStartAt:activeRef.actualStartAt}:null});
+}
+function b2EditTextTime(blockId){
+  const block=(APP_DATA.coreV21?.blocks||[]).find(x=>x.id===blockId&&x.type==='text');
+  if(!block){ showToast('対象のテキストが見つかりません。記録を確認してください',4000); return; }
+  const options=b34BuildTextTimeOptions(block);
+  if(!options.length){ showToast('作成時刻を確認できないため、時刻を編集できません',4000); return; }
+  const trip=(APP_DATA.trips||[]).find(t=>t.id===block.tripId);
+  if(!trip){ showToast('対象の旅行が見つかりません。記録を確認してください',4000); return; }
+  const activeRef=b31ActiveScheduleRef(trip);
+  const sheet=document.getElementById('b34TextTimeSheet');
+  const list=document.getElementById('b34TextTimeOptions');
+  const selected=options.find(option=>option.current);
+  B34_TEXT_TIME_PICKER={blockId,options,selectedMs:selected?.timestamp??null,
+    context:b34TextTimeContext(block,activeRef),returnFocus:document.activeElement};
+  const created=new Date(block.createdAt);
+  list.innerHTML=options.map((option,index)=>{
+    const date=new Date(option.timestamp);
+    const label=`${localDateKey(date)!==localDateKey(created)?'前日 ':''}${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    const relative=option.minutesAgo===0?'作成時刻':option.minutesAgo===null?'':`${option.minutesAgo}分前`;
+    const detail=[relative,option.current?'現在の設定':''].filter(Boolean).join(' · ');
+    return `<button type="button" class="b34-time-option" data-option-index="${index}" aria-pressed="${option===selected}" onclick="b34SelectTextTime(${index})"><span class="b34-time-label">${escapeHtml(label)}</span><span class="b34-time-detail">${escapeHtml(detail)}</span><span class="b34-time-check" aria-hidden="true">✓</span></button>`;
+  }).join('');
+  document.getElementById('b34TextTimeSave').disabled=!selected;
+  sheet.hidden=false;
+  document.body.classList.add('b34-time-picker-open');
+  const focusTarget=list.querySelector('[aria-pressed="true"]')||list.querySelector('button');
+  focusTarget?.focus({preventScroll:true});
+  if(focusTarget) list.scrollTop=Math.max(0,focusTarget.offsetTop-list.clientHeight/2+focusTarget.offsetHeight/2);
+}
+function b34SelectTextTime(index){
+  const state=B34_TEXT_TIME_PICKER;
+  const option=state?.options[index]; if(!option) return;
+  state.selectedMs=option.timestamp;
+  document.querySelectorAll('#b34TextTimeOptions button').forEach(button=>{
+    button.setAttribute('aria-pressed',String(Number(button.dataset.optionIndex)===index));
+  });
+  document.getElementById('b34TextTimeSave').disabled=false;
+}
+function b34CloseTextTimePicker(){
+  const returnFocus=B34_TEXT_TIME_PICKER?.returnFocus;
+  B34_TEXT_TIME_PICKER=null;
+  document.getElementById('b34TextTimeSheet').hidden=true;
+  document.body.classList.remove('b34-time-picker-open');
+  if(returnFocus?.isConnected) returnFocus.focus({preventScroll:true});
+}
+function b34TextTimeKeydown(event){
+  if(event.key==='Escape'){ event.preventDefault(); b34CloseTextTimePicker(); return; }
+  if(event.key!=='Tab') return;
+  const buttons=Array.from(document.querySelectorAll('#b34TextTimeSheet button:not(:disabled)'));
+  const first=buttons[0],last=buttons[buttons.length-1];
+  if(event.shiftKey&&document.activeElement===first){ event.preventDefault(); last?.focus(); }
+  else if(!event.shiftKey&&document.activeElement===last){ event.preventDefault(); first?.focus(); }
+}
+function b34SaveTextTime(){
+  const state=B34_TEXT_TIME_PICKER; if(!state) return;
+  const block=(APP_DATA.coreV21?.blocks||[]).find(x=>x.id===state.blockId&&x.type==='text');
+  if(!block){ showToast('対象のテキストが見つかりません。記録を確認してください',4000); return; }
+  const createdMs=new Date(block.createdAt||'').getTime(),selectedMs=state.selectedMs;
+  if(!Number.isFinite(createdMs)||!Number.isFinite(selectedMs)){
+    showToast('時刻を確認してください',4000); return;
+  }
+  /* Validate independently of the displayed options, using the original precision. */
+  if(selectedMs<createdMs-1800000||selectedMs>createdMs){
+    showToast('テキスト時刻は作成時刻から過去30分以内で設定できます',4000); return;
+  }
+  const trip=(APP_DATA.trips||[]).find(t=>t.id===block.tripId);
+  if(!trip){ showToast('対象の旅行が見つかりません。記録を確認してください',4000); return; }
+  const activeRef=b31ActiveScheduleRef(trip);
+  if(state.context!==b34TextTimeContext(block,activeRef)){
+    showToast('予定の進行状態または記録が変わりました。キャンセルして時刻を開き直してください',4000); return;
+  }
+  const keepActive=!!block.scheduleRef&&b34SameScheduleRef(block.scheduleRef,activeRef)&&b31ActiveRefStillValid(trip,block.scheduleRef);
+  const chosen=new Date(selectedMs);
+  // An unchanged selection is a no-op, including legacy timestamp spelling and ownership.
+  if(selectedMs!==new Date(block.timelineTime||block.createdAt).getTime()){
+    block.timelineTime=chosen.toISOString();
+    if(!keepActive) b34ReassignTextTimeAsBefore(trip,block,chosen);
+    persistAppData();
+  }
+  b34CloseTextTimePicker(); renderRecordScreen(); showToast('✓ Timeline時刻を変更しました');
+}
+function b34ReassignTextTimeAsBefore(trip,block,chosen){
+  // Original b2EditTextTime assignment, used only outside the current Active Schedule.
+  block.day=b2DayNumberForTime(trip,block.timelineTime);
+  if(block.day===null) block.scheduleRef=null;
+  else{
+    const day=trip?.days?.find(d=>d.day===block.day),plan=day?getActivePlanFromTrip(trip,day.day):null;
+    let matched=null;
+    if(plan){
+      const mins=chosen.getHours()*60+chosen.getMinutes();
+      const slots=(plan.slots||[]).slice().sort((a,b)=>slotSortMinutes(a)-slotSortMinutes(b));
+      slots.forEach((slot,index)=>{
+        const start=slotSortMinutes(slot),next=slots[index+1],end=slot.endTime?timeToMinutes(slot.endTime):(next?slotSortMinutes(next):Math.min(1439,start+60));
+        if(!matched&&mins>=start&&mins<end) matched={day:day.day,planId:plan.id,slotId:slot.id};
+      });
+    }
+    block.scheduleRef=matched;
+  }
+}
+function b2DeleteTextBlock(blockId){
+  const blocks=b2CoreBlocks(),idx=blocks.findIndex(x=>x.id===blockId&&x.type==='text'); if(idx<0) return;
+  if(!confirm('このテキスト記録を削除しますか？')) return;
+  blocks.splice(idx,1); persistAppData(); renderRecordScreen(); showToast('テキスト記録を削除しました');
+}
+function b2TextBlockHtml(block){
+  const time=b1TimelineIsoTime(block.timelineTime||block.createdAt)||'時刻不明';
+  return `<article class="b2-text-block"><div class="b2-text-meta"><span>TEXT</span><strong>${escapeHtml(time)}</strong></div><p>${escapeHtml(block.text||'')}</p><div class="b1-record-actions"><button onclick="b2EditTextBlock('${block.id}')">編集</button><button onclick="b2EditTextTime('${block.id}')">時刻</button><button class="danger-soft" onclick="b2DeleteTextBlock('${block.id}')">削除</button></div></article>`;
+}
+function b1BuildTimelineSkeleton(trip){
+  if(!trip) return {days:[],recordCount:0,scheduleCount:0,unplannedCount:0};
+  const records=(trip.records||[]).slice().sort((a,b)=>b1RecordSortAt(a)-b1RecordSortAt(b));
+  const textBlocks=b2TripTextBlocks(trip).slice().sort((a,b)=>b2BlockSortAt(a)-b2BlockSortAt(b));
+  const consumed=new Set(),consumedBlocks=new Set();
+  const result={days:[],recordCount:records.length+textBlocks.length,scheduleCount:0,unplannedCount:0};
+  (trip.days||[]).forEach(day=>{
+    const plan=getActivePlanFromTrip(trip,day.day);
+    const slots=(plan?.slots||[]).slice().sort((a,b)=>slotSortMinutes(a)-slotSortMinutes(b));
+    const items=[];
+    slots.forEach((slot,index)=>{
+      const linked=records.filter(record=>b1RecordMatchesSchedule(record,day,plan,slot)).sort((a,b)=>b1RecordSortAt(a)-b1RecordSortAt(b));
+      linked.forEach(record=>consumed.add(record.id));
+      const linkedBlocks=textBlocks.filter(block=>String(block?.scheduleRef?.slotId||'')===String(slot.id)&&Number(block?.scheduleRef?.day)===Number(day.day)&&(!block?.scheduleRef?.planId||String(block.scheduleRef.planId)===String(plan.id))).sort((a,b)=>b2BlockSortAt(a)-b2BlockSortAt(b));
+      linkedBlocks.forEach(block=>consumedBlocks.add(block.id));
+      const candidate=selectedCandidate(slot);
+      const meta=slot.v21||{};
+      const next=slots[index+1]||null;
+      const inferredEnd=slot.endTime||next?.startTime||'';
+      const startAt=meta.plannedStartAt||`${day.date}T${slot.startTime||'12:00'}:00`;
+      const endAt=meta.plannedEndAt||(inferredEnd?`${day.date}T${inferredEnd}:00`:null);
+      items.push({
+        type:'schedule',id:`schedule:${trip.id}:${day.day}:${plan?.id||'a'}:${slot.id}`,day,plan,slot,candidate,records:linked,blocks:linkedBlocks,
+        startAt,endAt,sortAt:new Date(startAt).getTime()||0,status:meta.status||slotStatus(trip,day.day,slot),meta
+      });
+      result.scheduleCount++;
+    });
+
+    const loose=records.filter(record=>!consumed.has(record.id)&&b1RecordDayNumber(trip,record)===Number(day.day)).sort((a,b)=>b1RecordSortAt(a)-b1RecordSortAt(b));
+    const looseGroups=[];
+    loose.forEach(record=>{
+      const at=b1RecordSortAt(record);
+      const prev=looseGroups[looseGroups.length-1];
+      const prevRecord=prev?.records?.[prev.records.length-1];
+      const gap=prevRecord?(at-b1RecordSortAt(prevRecord))/60000:Infinity;
+      const samePlace=!!(prevRecord?.placeName&&record?.placeName&&String(prevRecord.placeName).trim()===String(record.placeName).trim());
+      const threshold=samePlace?30:15;
+      if(prev&&gap>=0&&gap<=threshold){ prev.records.push(record); prev.endAt=record.capturedAt||record.createdAt||prev.endAt; }
+      else looseGroups.push({type:'unplanned',id:`unplanned:${trip.id}:${day.day}:${record.id}`,day,records:[record],startAt:record.capturedAt||record.createdAt||'',endAt:record.capturedAt||record.createdAt||'',sortAt:at});
+      consumed.add(record.id);
+    });
+    const looseBlocks=textBlocks.filter(block=>!consumedBlocks.has(block.id)&&Number(block.day)===Number(day.day)).sort((a,b)=>b2BlockSortAt(a)-b2BlockSortAt(b));
+    looseBlocks.forEach(block=>{
+      items.push({type:'unplanned',id:`unplanned-text:${trip.id}:${day.day}:${block.id}`,day,records:[],blocks:[block],startAt:block.timelineTime||block.createdAt||'',endAt:block.timelineTime||block.createdAt||'',sortAt:b2BlockSortAt(block)});
+      consumedBlocks.add(block.id); result.unplannedCount++;
+    });
+    looseGroups.forEach(group=>{ items.push(group); result.unplannedCount++; });
+    items.sort((a,b)=>{
+      if(a.sortAt===b.sortAt) return a.type==='schedule'?-1:1;
+      return a.sortAt-b.sortAt;
+    });
+    result.days.push({day,plan,items});
+  });
+
+  const leftoverBlocks=textBlocks.filter(block=>!consumedBlocks.has(block.id));
+  if(leftoverBlocks.length&&result.days.length){
+    leftoverBlocks.forEach(block=>{
+      result.days[result.days.length-1].items.push({type:'unplanned',id:`unplanned-text:${trip.id}:other:${block.id}`,day:result.days[result.days.length-1].day,records:[],blocks:[block],startAt:block.timelineTime||'',endAt:block.timelineTime||'',sortAt:b2BlockSortAt(block)});
+      result.unplannedCount++;
+    });
+    result.days[result.days.length-1].items.sort((a,b)=>a.sortAt-b.sortAt);
+  }
+  const leftovers=records.filter(record=>!consumed.has(record.id));
+  if(leftovers.length&&result.days.length){
+    result.days[0].items.unshift({type:'unplanned',id:`unplanned:${trip.id}:other`,day:result.days[0].day,records:leftovers.sort((a,b)=>b1RecordSortAt(a)-b1RecordSortAt(b)),startAt:leftovers[0]?.capturedAt||'',endAt:leftovers[leftovers.length-1]?.capturedAt||'',sortAt:-1});
+    result.unplannedCount++;
+  }
+  return result;
+}
+function b1RecordMediaHtml(record){
+  if(!b1RecordIsImage(record)) return '';
+  const src=record.previewDataUrl||record.dataUrl||'';
+  const key=record.mediaKey||'';
+  const hydrate=key?` data-v258-media-key="${escapeHtml(key)}"`:'';
+  return `<div class="b1-timeline-photo"><img src="${src}"${hydrate} alt="旅の記録写真"></div>`;
+}
+function b1RecordActionsHtml(record){
+  const cameraRecord=record.captureSource==='tripper_camera';
+  const editAction=cameraRecord?`editCameraRecord('${record.id}')`:`editRecord('${record.id}')`;
+  const deleteAction=cameraRecord?`deleteRecordEntry('${record.id}')`:`deleteRecord('${record.id}')`;
+  const image=b1RecordIsImage(record);
+  return `<div class="b1-record-actions"><button onclick="${editAction}">編集</button>${image&&record.slotId?`<button onclick="setRecordAsCover('${record.id}')">${record.isCover?'✓ 代表写真':'代表写真にする'}</button>`:''}<button class="danger-soft" onclick="${deleteAction}">削除</button></div>`;
+}
+function b1TimelineRecordHtml(record){
+  const time=b1TimelineIsoTime(record.capturedAt||record.createdAt)||'時刻不明';
+  const role=cameraRoleLabel?.(b1RecordKind(record))||recordKindLabel?.(b1RecordKind(record))||'RECORD';
+  const note=record.comment||record.note||'';
+  return `<article class="b1-timeline-record ${record.isCover?'is-cover':''}">
+    <div class="b1-record-meta"><span>${escapeHtml(role)}</span><strong>${escapeHtml(time)}</strong>${record.isCover?'<em>代表写真</em>':''}</div>
+    ${b1RecordMediaHtml(record)}
+    <div class="b1-record-copy"><div class="b1-record-place">${iconSvg('pin')}<span>${escapeHtml(record.placeName||'場所未設定')}</span></div>${note?`<p>${escapeHtml(note)}</p>`:''}${b1RecordActionsHtml(record)}</div>
+  </article>`;
+}
+function b1ScheduleActualLabel(meta){
+  const start=b1TimelineIsoTime(meta?.actualStartAt),end=b1TimelineIsoTime(meta?.actualEndAt);
+  if(start&&end) return `実際 ${start}–${end}`;
+  if(start) return `実際 ${start}〜`;
+  if(end) return `実際 終了 ${end}`;
+  return '';
+}
+function b1TimelineItemHtml(item){
+  if(item.type==='unplanned'){
+    const allTimes=[...(item.records||[]).map(r=>r.capturedAt||r.createdAt||''),...(item.blocks||[]).map(b=>b.timelineTime||b.createdAt||'')].filter(Boolean).sort((a,b)=>new Date(a)-new Date(b));
+    const firstTime=b1TimelineIsoTime(allTimes[0]);
+    const lastTime=b1TimelineIsoTime(allTimes[allTimes.length-1]);
+    const range=firstTime&&lastTime&&firstTime!==lastTime?`${firstTime}–${lastTime}`:(firstTime||'時間未定');
+    return `<section class="b1-timeline-group b1-unplanned-group"><div class="b1-timeline-rail"><span></span></div><div class="b1-timeline-card"><div class="b1-group-top"><div><div class="b1-group-kicker">寄り道</div><h3>予定の外で生まれた記録</h3></div><div class="b1-group-time">${escapeHtml(range)}</div></div><p class="b1-group-sub">予定に合わせ直さなくても、このまま旅の一部として残せます。</p><div class="b1-group-records">${[...(item.records||[]).map(record=>({at:b1RecordSortAt(record),html:b1TimelineRecordHtml(record)})),...(item.blocks||[]).map(block=>({at:b2BlockSortAt(block),html:b2TextBlockHtml(block)}))].sort((a,b)=>a.at-b.at).map(x=>x.html).join('')}</div></div></section>`;
+  }
+  const {slot,candidate,records,blocks,meta,status}=item;
+  const actual=b1ScheduleActualLabel(meta);
+  const statusLabel=b1TimelineStatusLabel(status);
+  const policy=meta?.timePolicy==='fixed'?'固定':'調整可';
+  return `<section class="b1-timeline-group b1-schedule-group status-${escapeHtml(status)}"><div class="b1-timeline-rail"><span></span></div><div class="b1-timeline-card"><div class="b1-group-top"><div><div class="b1-group-kicker">SCHEDULE · ${escapeHtml(statusLabel)}</div><h3>${escapeHtml(cleanDisplayName(candidate?.name||candidate?.destination||'予定'))}</h3></div><div class="b1-group-time">${escapeHtml(slotTimeLabel(slot))}</div></div><div class="b1-schedule-meta"><span>${escapeHtml(policy)}</span>${actual?`<span>${escapeHtml(actual)}</span>`:''}${candidate?.destination?`<span>${iconSvg('pin')} ${escapeHtml(candidate.destination)}</span>`:''}</div>${candidate?.activity?`<p class="b1-group-sub">${escapeHtml(candidate.activity)}</p>`:''}<div class="b1-group-records">${(records?.length||blocks?.length)?[...(records||[]).map(record=>({at:b1RecordSortAt(record),html:b1TimelineRecordHtml(record)})),...(blocks||[]).map(block=>({at:b2BlockSortAt(block),html:b2TextBlockHtml(block)}))].sort((a,b)=>a.at-b.at).map(x=>x.html).join(''):'<div class="b1-empty-inside">この予定の記録はまだありません。</div>'}</div></div></section>`;
+}
 function renderRecordScreen(){
   const section=document.getElementById('record'); if(!section) return;
   const trip=getRecordTrip?.()||v254RecentTripForRecord?.()||getHomeTrip()||getTrip();
-  const records=(trip?.records||[]).filter(r=>r.captureSource==='tripper_camera').slice().sort((a,b)=>String(b.capturedAt||'').localeCompare(String(a.capturedAt||'')));
-  section.innerHTML=`<div class="editorial-page-shell record-camera-only-page">
-    <div class="page-intro-row single"><div><div class="page-kicker">RECORD</div><h2 class="section-title no-margin">記録</h2><p class="section-sub">Tripper Noteのカメラで撮影し、予定・感想・代表写真までひと続きでTime Diaryに残します。</p></div></div>
-    ${trip?`<div class="record-hero-card card"><div class="record-hero-top"><div><div class="time">${localDateKey()<trip.startDate?'NEXT JOURNEY':localDateKey()>trip.endDate?'TRIP ARCHIVE':'ON THE ROAD'}</div><div class="title">${escapeHtml(cleanDisplayName(trip.title))}</div><div class="desc">${escapeHtml(formatSlash(trip.startDate))} — ${escapeHtml(formatSlash(trip.endDate))} · ${v257PhotoCount(records.length)}</div></div></div>
-      <button class="record-camera-main" onclick="startInAppCamera('entry')">${iconSvg('camera')}<span><strong>写真を撮る</strong><small>撮影後に予定・感想・代表写真を設定</small></span></button>
-      <div class="record-role-actions camera-only"><button onclick="startInAppCamera('start')"><span>START</span><strong>旅の始まりを撮る</strong></button><button onclick="startInAppCamera('fin')"><span>FIN</span><strong>旅の終わりを撮る</strong></button></div>
-    </div>`:'<div class="record-empty">旅行を登録すると、アプリ内カメラからTime Diaryを始められます。</div>'}
-    <div class="record-data-link-note"><strong>Camera Only</strong><span>撮影日時はシャッターを押した瞬間で固定。高画質原本は端末内のメディア領域へ保存します。</span></div>
-    <div class="record-timeline-head"><div><div class="page-kicker">TIME DIARY</div><div class="title">旅のタイムライン</div></div><span class="trip-mini-badge">${v257PhotoCount(records.length)}</span></div>
-    <div class="record-actual-timeline">${records.length?records.map(record=>{ const cover=!!record.isCover; const linked=!!record.slotId; const mediaAttr=record.mediaKey?` data-v258-media-key="${escapeHtml(record.mediaKey)}"`:''; return `<article class="record-photo-entry ${cover?'is-cover':''}"><div class="record-photo-time"><span>${cameraRoleLabel(record.kind)}</span><strong>${escapeHtml(capturedTimeLabel(record.capturedAt))}</strong></div><div class="record-photo-media"><img src="${record.previewDataUrl||''}"${mediaAttr} alt="Tripper Noteで撮影した写真"></div><div class="record-photo-body"><div class="record-linked-slot">${iconSvg('pin')} ${escapeHtml(record.placeName||recordLinkedLabel?.(record)||'場所未設定')}</div><div class="record-link-status ${linked?'linked':'unlinked'}">${linked?'旅程に紐付け済み':'予定に未紐付け'}</div>${record.comment?`<div class="record-photo-note">${escapeHtml(record.comment)}</div>`:''}${cover?'<div class="cover-record-badge">代表写真</div>':''}<div class="record-photo-actions"><button class="btn ghost compact-btn" onclick="editCameraRecord('${record.id}')">予定・感想を編集</button>${record.slotId?`<button class="btn secondary compact-btn" onclick="setRecordAsCover('${record.id}')">${cover?'✓ 代表写真':'代表写真にする'}</button>`:''}<button class="btn secondary compact-btn danger-soft" onclick="deleteRecordEntry('${record.id}')">削除</button></div></div></article>`; }).join(''):'<div class="record-empty large">まだ写真がありません。「写真を撮る」からTripper Noteカメラを起動してください。</div>'}</div>
+  const timeline=b1BuildTimelineSkeleton(trip);
+  const photoCount=(trip?.records||[]).filter(b1RecordIsImage).length;
+  const quickEligibility=trip?b2CanQuickRecordNow(trip,new Date()):{ok:false,phase:'none'};
+  const quickDisabled=quickEligibility.ok?'':' disabled aria-disabled="true"';
+  const quickPlaceholder=quickEligibility.ok?'今のことを記録…':(quickEligibility.phase==='before'?'旅行開始後に記録できます':'終了した旅です');
+  section.innerHTML=`<div class="editorial-page-shell record-camera-only-page b1-timeline-page">
+    <div class="page-intro-row single"><div><div class="page-kicker">RECORD</div><h2 class="section-title no-margin">記録</h2><p class="section-sub">予定を骨格に、写真や寄り道が旅の流れの中へ自然に積み重なるTimelineです。</p></div></div>
+    ${(APP_DATA?.trips||[]).length>1?`<div class="record-trip-switch chip-row">${(APP_DATA.trips||[]).slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)).map(t=>`<button class="chip ${trip?.id===t.id?'active':''}" onclick="setRecordTrip('${t.id}')">${escapeHtml(cleanDisplayName(t.title))}</button>`).join('')}</div>`:''}
+    ${trip?`<div class="record-hero-card card b1-record-hero"><div class="record-hero-top"><div><div class="time">LIVE TIMELINE</div><div class="title">${escapeHtml(cleanDisplayName(trip.title))}</div><div class="desc">${escapeHtml(formatSlash(trip.startDate))} — ${escapeHtml(formatSlash(trip.endDate))} · ${v257PhotoCount(photoCount)}</div></div></div><button class="record-camera-main" onclick="startInAppCamera('entry')"${quickDisabled}>${iconSvg('camera')}<span><strong>${quickEligibility.ok?'今を撮る':'撮影は終了しています'}</strong><small>${quickEligibility.ok?'今までのカメラ機能はそのまま使えます':'過去の旅には現在時刻の写真を追加しません'}</small></span></button><div class="record-role-actions camera-only"><button onclick="startInAppCamera('start')"${quickDisabled}><span>START</span><strong>旅の始まりを撮る</strong></button><button onclick="startInAppCamera('fin')"${quickDisabled}><span>FIN</span><strong>旅の終わりを撮る</strong></button></div></div>`:'<div class="record-empty">旅行を登録するとTimelineを表示できます。</div>'}
+    ${trip?`<div class="b1-timeline-summary"><div><span>SCHEDULE</span><strong>${timeline.scheduleCount}</strong></div><div><span>RECORD</span><strong>${timeline.recordCount}</strong></div><div><span>寄り道</span><strong>${timeline.unplannedCount}</strong></div></div>`:''}
+    <div class="b1-phase-note"><strong>Phase 4B.2</strong><span>Quick Record BarとText Blockを追加しました。Scheduleの開始・終了操作は次工程です。</span></div>
+    <div class="b1-master-timeline">${timeline.days.map(dayEntry=>`<section class="b1-day-section"><div class="b1-day-heading"><span>DAY ${dayEntry.day.day}</span><strong>${escapeHtml(formatJP(dayEntry.day.date))}</strong></div>${dayEntry.items.length?dayEntry.items.map(b1TimelineItemHtml).join(''):'<div class="record-empty">この日のTimelineはまだ空です。</div>'}</section>`).join('')}</div>
+    ${trip?`<div class="b2-quick-record-bar ${quickEligibility.ok?'':'is-readonly'}"><button class="b2-quick-plus" onclick="b2OpenQuickAddMenu()" aria-label="追加">＋</button><button class="b2-quick-camera" onclick="startInAppCamera('entry')" aria-label="写真を撮る"${quickDisabled}>${iconSvg('camera')}</button><textarea id="b2QuickTextInput" rows="1" maxlength="500" placeholder="${escapeHtml(quickPlaceholder)}" oninput="b2SyncQuickSendState()" onkeydown="b2QuickTextKeydown(event)"${quickDisabled}></textarea><button id="b2QuickSend" class="b2-quick-send" onclick="b2SubmitQuickText()" disabled aria-label="送信">↑</button></div>`:''}
   </div>`;
   setTimeout(()=>hydrateV258AFullQualityMedia(section),0);
 }
@@ -2130,6 +2527,8 @@ function v258A2CameraIsFront(){
 async function startInAppCamera(role='entry'){
   const trip=getRecordTrip?.()||getHomeTrip()||getTrip()||APP_DATA.trips?.[0];
   if(!trip){ alert('先に旅行を登録してください。'); return; }
+  const eligibility=typeof b2CanQuickRecordNow==='function'?b2CanQuickRecordNow(trip,new Date()):{ok:true};
+  if(!eligibility.ok){ showToast(eligibility.message||'現在時刻の記録は追加できません。'); return; }
   stopTripperCameraStream();
   TRIPPER_CAMERA_STATE={
     stream:null,
@@ -2841,11 +3240,13 @@ async function saveScheduleEditor(){
       const cid=uid('candidate');
       draft.candidate.id=cid;
       slot.startTime=draft.startTime; slot.endTime=draft.endTime;
+      b3SyncPlannedFoundationForEditor(slot,ctx.dayNum,draft.startTime,draft.endTime,ctx.source||'app');
       slot.candidates.push(draft.candidate); slot.selectedCandidateId=cid;
     }else{
       const target=b1ScheduleCandidate(ctx); if(!target){ b2SetSaveBusy(false); return; }
       draft.candidate.id=target.id;
       slot.startTime=draft.startTime; slot.endTime=draft.endTime;
+      b3SyncPlannedFoundationForEditor(slot,ctx.dayNum,draft.startTime,draft.endTime,ctx.source||'app');
       const idx=slot.candidates.findIndex(c=>c.id===target.id);
       if(idx>=0) slot.candidates[idx]={...target,...draft.candidate};
     }
@@ -3352,6 +3753,692 @@ document.addEventListener('DOMContentLoaded',()=>{ syncTripDateDisplays(); b3Bin
 
 try{
   APP_DATA.settings=APP_DATA.settings||{};
-  APP_DATA.settings.lastAppVersion='2.5.8-B.3.1';
+  APP_DATA.settings.lastAppVersion='2.6.0-B.3.1';
   persistAppData();
-}catch(err){ console.warn('v2.5.8-B.3.1 version marker not persisted',err); }
+}catch(err){ console.warn('v2.6.0-B.3.1 version marker not persisted',err); }
+
+/* =========================================================
+   v2.6.0-B.3.1 Phase 4B.3 Schedule Progression Core
+   Planned times no longer auto-complete a Schedule. Manual
+   Start / Finish / Skip transitions write actual times while
+   keeping planned times intact. Simple actions use the ±15 min
+   snap rule. Explicit time editing will be added later.
+   ========================================================= */
+const B3_SCHEDULE_STATES=['upcoming','active','extended','completed','skipped'];
+const B3_SNAP_MINUTES=15;
+
+function b3SyncPlannedFoundationForEditor(slot,dayNum,startTime,endTime,source='app'){
+  if(!slot) return;
+  const day=getDay(dayNum,source); if(!day) return;
+  slot.v21=normalizeScheduleFoundation(slot.v21||{},slot,day.date);
+  slot.v21.plannedStartAt=localDateTimeValue(day.date,startTime||slot.startTime||'');
+  slot.v21.plannedEndAt=localDateTimeValue(day.date,endTime||slot.endTime||'');
+  slot.v21.plannedDurationMinutes=durationMinutes(startTime||slot.startTime||'',endTime||slot.endTime||'');
+}
+
+function b3ScheduleContext(tripId,dayNum,planId,slotId){
+  const trip=getTripById(tripId)||getRecordTrip?.()||getTrip();
+  if(!trip) return null;
+  const day=getDayFromTrip(trip,dayNum); if(!day) return null;
+  const plan=getPlanFromTrip(trip,dayNum,planId)||getActivePlanFromTrip(trip,dayNum); if(!plan) return null;
+  const slot=plan.slots?.find(s=>String(s.id)===String(slotId)); if(!slot) return null;
+  slot.v21=normalizeScheduleFoundation(slot.v21||{},slot,day.date);
+  return {trip,day,plan,slot,meta:slot.v21,candidate:selectedCandidate(slot)};
+}
+function b3StatusForSlot(trip,dayNum,slot){
+  if(!trip||!slot) return 'upcoming';
+  const day=getDayFromTrip(trip,dayNum); if(!day) return 'upcoming';
+  const meta=slot.v21||{};
+  if(B3_SCHEDULE_STATES.includes(meta.status)) return meta.status;
+  if(slot.completedAt) return 'completed';
+  if(day.date<localDateKey()) return 'completed';
+  return 'upcoming';
+}
+slotStatus=function(trip,dayNum,slot){ return b3StatusForSlot(trip,dayNum,slot); };
+
+function b3SnapIso(candidateDate,plannedAt){
+  const candidate=candidateDate instanceof Date?candidateDate:new Date(candidateDate||Date.now());
+  if(Number.isNaN(candidate.getTime())) return new Date().toISOString();
+  const planned=new Date(plannedAt||'');
+  if(!Number.isNaN(planned.getTime())&&Math.abs(candidate.getTime()-planned.getTime())<=B3_SNAP_MINUTES*60000) return planned.toISOString();
+  return candidate.toISOString();
+}
+function b3ScheduleIsToday(ctx,now=new Date()){
+  return !!ctx&&ctx.day.date===localDateKey(now)&&ctx.trip.startDate<=ctx.day.date&&ctx.trip.endDate>=ctx.day.date;
+}
+function b3FindActiveSchedule(trip){
+  if(!trip) return null;
+  for(const day of (trip.days||[])){
+    const plan=getActivePlanFromTrip(trip,day.day); if(!plan) continue;
+    for(const slot of (plan.slots||[])){
+      const status=b3StatusForSlot(trip,day.day,slot);
+      if(status==='active'||status==='extended') return b3ScheduleContext(trip.id,day.day,plan.id,slot.id);
+    }
+  }
+  return null;
+}
+function b3SetCompleted(ctx,candidateDate=new Date(),source='manual_finish_button'){
+  if(!ctx) return;
+  ctx.meta.actualEndAt=b3SnapIso(candidateDate,ctx.meta.plannedEndAt);
+  ctx.meta.status='completed';
+  ctx.meta.stateSource=source;
+  ctx.meta.manualEndOverride=false;
+  ctx.slot.completedAt=ctx.meta.actualEndAt;
+}
+function b3RefreshScheduleSurfaces(){
+  persistAppData();
+  try{ renderHome(); }catch(_e){}
+  try{ renderTripDetail(); }catch(_e){}
+  try{ renderRecordScreen(); }catch(_e){}
+}
+function b3StartSchedule(tripId,dayNum,planId,slotId){
+  const ctx=b3ScheduleContext(tripId,dayNum,planId,slotId); if(!ctx) return;
+  if(!b3ScheduleIsToday(ctx)){ showToast('この予定は当日に開始できます'); return; }
+  const targetStatus=b3StatusForSlot(ctx.trip,dayNum,ctx.slot);
+  if(targetStatus!=='upcoming'){ showToast(targetStatus==='active'||targetStatus==='extended'?'この予定はすでに進行中です':'この予定は開始済みです'); return; }
+  const current=b3FindActiveSchedule(ctx.trip);
+  if(current){
+    const currentName=cleanDisplayName(current.candidate?.name||current.candidate?.destination||'現在の予定');
+    const nextName=cleanDisplayName(ctx.candidate?.name||ctx.candidate?.destination||'次の予定');
+    if(!confirm(`「${currentName}」を終了して「${nextName}」を開始しますか？`)) return;
+    b3SetCompleted(current,new Date(),'next_schedule_manual_start');
+  }
+  const now=new Date();
+  ctx.meta.actualStartAt=b3SnapIso(now,ctx.meta.plannedStartAt);
+  ctx.meta.actualEndAt=null;
+  ctx.meta.status='active';
+  ctx.meta.stateSource='manual_start_button';
+  ctx.meta.manualStartOverride=false;
+  ctx.meta.manualEndOverride=false;
+  ctx.slot.completedAt='';
+  b3RefreshScheduleSurfaces();
+  showToast('✓ 予定を開始しました');
+}
+function b3FinishSchedule(tripId,dayNum,planId,slotId){
+  const ctx=b3ScheduleContext(tripId,dayNum,planId,slotId); if(!ctx) return;
+  if(!['active','extended'].includes(b3StatusForSlot(ctx.trip,dayNum,ctx.slot))){ showToast('進行中の予定だけ終了できます'); return; }
+  if(!confirm('この予定を終了しますか？')) return;
+  b3SetCompleted(ctx,new Date(),'manual_finish_button');
+  b3RefreshScheduleSurfaces();
+  showToast('✓ 予定を終了しました');
+}
+function b3SkipSchedule(tripId,dayNum,planId,slotId){
+  const ctx=b3ScheduleContext(tripId,dayNum,planId,slotId); if(!ctx) return;
+  if(!b3ScheduleIsToday(ctx)){ showToast('スキップ操作は旅行当日に使えます'); return; }
+  if(b3StatusForSlot(ctx.trip,dayNum,ctx.slot)!=='upcoming'){ showToast('これからの予定だけスキップできます'); return; }
+  const name=cleanDisplayName(ctx.candidate?.name||ctx.candidate?.destination||'この予定');
+  if(!confirm(`「${name}」を今日はスキップしますか？`)) return;
+  ctx.meta.status='skipped';
+  ctx.meta.stateSource='manual_skip';
+  ctx.meta.actualStartAt=null;
+  ctx.meta.actualEndAt=null;
+  ctx.slot.completedAt='';
+  b3RefreshScheduleSurfaces();
+  showToast('予定をスキップしました');
+}
+completeSlot=function(dayNum,planId,slotId){
+  const trip=getTrip(); if(!trip) return;
+  return b3FinishSchedule(trip.id,dayNum,planId,slotId);
+};
+
+function b3TimelineActions(item){
+  if(!item||item.type!=='schedule') return '';
+  const tripId=item?.tripId||getRecordTrip?.()?.id||getTrip()?.id||'';
+  const ctx=b3ScheduleContext(tripId,item.day.day,item.plan.id,item.slot.id);
+  if(!ctx||!b3ScheduleIsToday(ctx)) return '';
+  const status=b3StatusForSlot(ctx.trip,ctx.day.day,ctx.slot);
+  if(status==='upcoming') return `<div class="b3-schedule-actions"><button class="b3-start-button" onclick="b3StartSchedule('${ctx.trip.id}',${ctx.day.day},'${ctx.plan.id}','${ctx.slot.id}')">予定を開始</button><button class="b3-quiet-button" onclick="b3SkipSchedule('${ctx.trip.id}',${ctx.day.day},'${ctx.plan.id}','${ctx.slot.id}')">今日はスキップ</button></div>`;
+  if(status==='active'||status==='extended') return `<div class="b3-schedule-actions"><button class="b3-finish-button" onclick="b3FinishSchedule('${ctx.trip.id}',${ctx.day.day},'${ctx.plan.id}','${ctx.slot.id}')">予定を終了</button></div>`;
+  return '';
+}
+
+const b3BaseBuildTimelineSkeleton=b1BuildTimelineSkeleton;
+b1BuildTimelineSkeleton=function(trip){
+  const result=b3BaseBuildTimelineSkeleton(trip);
+  (result.days||[]).forEach(dayEntry=>(dayEntry.items||[]).forEach(item=>{
+    if(item.type==='schedule') item.tripId=trip.id;
+  }));
+  return result;
+};
+
+b1TimelineItemHtml=function(item){
+  if(item.type==='unplanned'){
+    const allTimes=[...(item.records||[]).map(r=>r.capturedAt||r.createdAt||''),...(item.blocks||[]).map(b=>b.timelineTime||b.createdAt||'')].filter(Boolean).sort((a,b)=>new Date(a)-new Date(b));
+    const firstTime=b1TimelineIsoTime(allTimes[0]);
+    const lastTime=b1TimelineIsoTime(allTimes[allTimes.length-1]);
+    const range=firstTime&&lastTime&&firstTime!==lastTime?`${firstTime}–${lastTime}`:(firstTime||'時間未定');
+    return `<section class="b1-timeline-group b1-unplanned-group"><div class="b1-timeline-rail"><span></span></div><div class="b1-timeline-card"><div class="b1-group-top"><div><div class="b1-group-kicker">寄り道</div><h3>予定の外で生まれた記録</h3></div><div class="b1-group-time">${escapeHtml(range)}</div></div><p class="b1-group-sub">予定に合わせ直さなくても、このまま旅の一部として残せます。</p><div class="b1-group-records">${[...(item.records||[]).map(record=>({at:b1RecordSortAt(record),html:b1TimelineRecordHtml(record)})),...(item.blocks||[]).map(block=>({at:b2BlockSortAt(block),html:b2TextBlockHtml(block)}))].sort((a,b)=>a.at-b.at).map(x=>x.html).join('')}</div></div></section>`;
+  }
+  const {slot,candidate,records,blocks,meta}=item;
+  const tripId=item?.tripId||getRecordTrip?.()?.id||getTrip()?.id||'';
+  const trip=getTripById(tripId)||getRecordTrip?.()||getTrip();
+  const status=b3StatusForSlot(trip,item.day.day,slot);
+  const actual=b1ScheduleActualLabel(meta);
+  const statusLabel=b1TimelineStatusLabel(status);
+  const policy=meta?.timePolicy==='fixed'?'固定':'調整可';
+  const actions=b3TimelineActions({...item,status});
+  return `<section class="b1-timeline-group b1-schedule-group status-${escapeHtml(status)}"><div class="b1-timeline-rail"><span></span></div><div class="b1-timeline-card"><div class="b1-group-top"><div><div class="b1-group-kicker">SCHEDULE · ${escapeHtml(statusLabel)}</div><h3>${escapeHtml(cleanDisplayName(candidate?.name||candidate?.destination||'予定'))}</h3></div><div class="b1-group-time">${escapeHtml(slotTimeLabel(slot))}</div></div><div class="b1-schedule-meta"><span>${escapeHtml(policy)}</span>${actual?`<span>${escapeHtml(actual)}</span>`:''}${candidate?.destination?`<span>${iconSvg('pin')} ${escapeHtml(candidate.destination)}</span>`:''}</div>${candidate?.activity?`<p class="b1-group-sub">${escapeHtml(candidate.activity)}</p>`:''}${actions}<div class="b1-group-records">${(records?.length||blocks?.length)?[...(records||[]).map(record=>({at:b1RecordSortAt(record),html:b1TimelineRecordHtml(record)})),...(blocks||[]).map(block=>({at:b2BlockSortAt(block),html:b2TextBlockHtml(block)}))].sort((a,b)=>a.at-b.at).map(x=>x.html).join(''):'<div class="b1-empty-inside">この予定の記録はまだありません。</div>'}</div></div></section>`;
+};
+
+const b43PreviousRenderSlotCard=renderSlotCard;
+renderSlotCard=function(slot,dayNum,planId){
+  const trip=getTrip();
+  const c=selectedCandidate(slot);
+  const count=Array.isArray(slot?.candidates)?slot.candidates.length:0;
+  const hasStack=count>=2;
+  const status=b3StatusForSlot(trip,dayNum,slot);
+  const completed=status==='completed',skipped=status==='skipped',settled=completed||skipped;
+  const coverRecord=v258ACoverRecord(trip,slot,dayNum);
+  const fallbackCover=slot?.coverPhoto?.dataUrl||coverRecord?.previewDataUrl||'';
+  const coverKey=coverRecord?.mediaKey||slot?.coverPhoto?.mediaKey||'';
+  const hasCover=completed&&!!(fallbackCover||coverKey);
+  const hasLocation=!!(c?.destination||c?.address||c?.googleMapsUrl||c?.name);
+  const locationLabel=c?.address||c?.destination||'';
+  const unresolved=!!c?.locationUnresolved;
+  const coverStyle=hasCover&&fallbackCover?` style="--slot-cover-photo:url('${fallbackCover}')"`:'';
+  const coverAttr=hasCover&&coverKey?` data-v258-cover-key="${escapeHtml(coverKey)}"`:'';
+  const stateLabel=({completed:'完了',active:'進行中',extended:'延長中',skipped:'スキップ',upcoming:'予定'})[status]||'予定';
+  const bundleButton=hasStack?`<button class="slot-bundle-button" onclick="${completed?'openCompletedCandidateOptions':'openCandidateModal'}(${dayNum},'${planId}','${slot.id}'${completed?'':",'app'"})" aria-label="${count}件の候補を表示">${v258A2BundleIcon()}<span>候補</span><strong>${count}</strong></button>`:'';
+  const addCandidate=(!settled&&!hasStack)?`<button class="slot-add-candidate-button" onclick="openScheduleEditor('add-candidate',${dayNum},'${planId}','${slot.id}','app')">＋候補</button>`:'';
+  const meta=slot.v21||{};
+  const actual=b1ScheduleActualLabel(meta);
+  let bodyActions='';
+  if(settled){
+    bodyActions=`${actual?`<div class="b3-slot-actual">${escapeHtml(actual)}</div>`:''}<div class="slot-completed-actions"><button class="slot-quiet-action" onclick="openScheduleEditor('edit-schedule',${dayNum},'${planId}','${slot.id}','app')">${iconSvg('edit')} 編集</button>${hasLocation?`<button class="slot-quiet-action" onclick="mapCandidate(${dayNum},'${planId}','${slot.id}')">${iconSvg('pin')} 地図</button>`:''}</div>`;
+  }else{
+    const buttons=[];
+    if(c?.transportMode!=='none') buttons.push(`<button class="btn ${c?.transportMode==='car'?'nav':'walk'}" onclick="navigateCandidate(${dayNum},'${planId}','${slot.id}')">${transportIcon(c?.transportMode)} ${navPreferenceLabel(c?.transportMode)}</button>`);
+    if(hasLocation) buttons.push(`<button class="btn secondary" onclick="mapCandidate(${dayNum},'${planId}','${slot.id}')">${iconSvg('pin')} 地図</button>`);
+    const ctx=b3ScheduleContext(trip?.id,dayNum,planId,slot.id);
+    let stateAction='';
+    if(ctx&&b3ScheduleIsToday(ctx)){
+      if(status==='upcoming') stateAction=`<div class="b3-trip-state-actions"><button class="b3-trip-start" onclick="b3StartSchedule('${trip.id}',${dayNum},'${planId}','${slot.id}')">予定を開始</button><button class="b3-trip-skip" onclick="b3SkipSchedule('${trip.id}',${dayNum},'${planId}','${slot.id}')">スキップ</button></div>`;
+      else if(status==='active'||status==='extended') stateAction=`<div class="b3-trip-state-actions"><button class="slot-finish-button" onclick="b3FinishSchedule('${trip.id}',${dayNum},'${planId}','${slot.id}')">✓ 予定を終了</button></div>`;
+    }
+    bodyActions=`${buttons.length?`<div class="actions ${buttons.length===1?'one':''}">${buttons.join('')}</div>`:''}${actual?`<div class="b3-slot-actual">${escapeHtml(actual)}</div>`:''}${stateAction}`;
+  }
+  return `<div class="slot-wrap ${hasStack?'has-stack':''}" data-candidate-count="${count}" data-slot-id="${slot.id}"><div class="card slot-card editorial-slot status-${status} ${hasCover?'has-cover-photo':''}"${coverStyle}${coverAttr}><div class="slot-cover-overlay"></div><div class="slot-main"><div class="slot-meta-row"><div class="slot-meta-left"><span class="slot-time-chip">${escapeHtml(slotTimeLabel(slot))}</span>${bundleButton}${addCandidate}${coverRecord?'<span class="slot-record-chip">PHOTO</span>':''}</div><span class="slot-state-badge ${status}">${stateLabel}</span></div><div class="title">${escapeHtml(cleanDisplayName(c?.name||c?.destination||'未設定の予定'))}</div>${c?.activity?`<div class="activity-line">${escapeHtml(c.activity)}</div>`:''}${c?.description?`<div class="desc">${escapeHtml(c.description)}</div>`:''}${settled?(locationLabel?`<div class="slot-completed-location">${iconSvg('pin')}<span>${escapeHtml(locationLabel)}</span>${unresolved?'<span class="slot-unresolved-badge">場所未確定</span>':''}</div>`:''):(c?.destination?`<div class="destination-line">${iconSvg('pin')} ${escapeHtml(c.destination)}${unresolved?'<span class="slot-unresolved-badge">場所未確定</span>':''}</div>`:'')}${c?.tags?.length?`<div class="tags">${c.tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`:''}${bodyActions}</div></div></div>`;
+};
+
+/* Update the phase note without duplicating the full Record renderer. */
+const b3PreviousRenderRecordScreen=renderRecordScreen;
+renderRecordScreen=function(){
+  b3PreviousRenderRecordScreen();
+  const note=document.querySelector('#record .b1-phase-note');
+  if(note) note.innerHTML='<strong>Phase 4B.3</strong><span>Scheduleの開始・終了・スキップとactual時刻記録を追加しました。位置情報による自動切替は次Phaseです。</span>';
+};
+
+try{
+  APP_DATA.settings=APP_DATA.settings||{};
+  APP_DATA.settings.lastAppVersion='2.6.0-B.3.1';
+  persistAppData();
+}catch(err){ console.warn('v2.6.0-B.3.1 version marker not persisted',err); }
+
+/* =========================================================
+   v2.6.0-B.3.1 Cross-Day Active Schedule Assignment Hotfix
+   An ACTIVE / EXTENDED Schedule outranks the calendar-day
+   boundary for Quick Record assignment. A photo or text made
+   after midnight remains inside the Schedule that is still in
+   progress until that Schedule is explicitly completed.
+   ========================================================= */
+function b31ActiveScheduleRef(trip){
+  const ctx=typeof b3FindActiveSchedule==='function'?b3FindActiveSchedule(trip):null;
+  if(!ctx) return null;
+  return {
+    day:Number(ctx.day.day),
+    planId:String(ctx.plan.id||''),
+    slotId:String(ctx.slot.id||''),
+    actualStartAt:ctx.meta?.actualStartAt||'',
+    status:b3StatusForSlot(ctx.trip,ctx.day.day,ctx.slot)
+  };
+}
+
+function b31ActiveRefStillValid(trip,ref){
+  if(!trip||!ref?.slotId) return false;
+  const ctx=b3ScheduleContext(trip.id,ref.day,ref.planId,ref.slotId);
+  if(!ctx) return false;
+  return ['active','extended'].includes(b3StatusForSlot(trip,ctx.day.day,ctx.slot));
+}
+
+/* While a Schedule is active, Quick Record remains available even when
+   midnight is technically outside the Trip's nominal date range. */
+const b31BaseCanQuickRecordNow=b2CanQuickRecordNow;
+b2CanQuickRecordNow=function(trip,now=new Date()){
+  if(trip&&b31ActiveScheduleRef(trip)) return {ok:true,phase:'active-schedule'};
+  return b31BaseCanQuickRecordNow(trip,now);
+};
+
+/* Active Schedule lookup must scan the whole Trip, not only today's Day. */
+b2FindActiveScheduleRef=function(trip,now=new Date()){
+  const ref=b31ActiveScheduleRef(trip);
+  return ref?{day:ref.day,planId:ref.planId,slotId:ref.slotId}:null;
+};
+
+/* Text Quick Record follows the same cross-day ownership rule. */
+b2SubmitQuickText=function(){
+  const trip=getRecordTrip?.()||getHomeTrip()||getTrip();
+  const input=b2QuickTextInput(); const text=input?.value?.trim()||'';
+  if(!text) return;
+  const now=new Date();
+  const eligibility=b2CanQuickRecordNow(trip,now);
+  if(!eligibility.ok){ showToast(eligibility.message); return; }
+  const iso=now.toISOString();
+  const ref=b2FindActiveScheduleRef(trip,now);
+  const block={
+    id:uid('text'),tripId:trip.id,type:'text',text,createdAt:iso,timelineTime:iso,
+    day:ref?.day??b2DayNumberForTime(trip,iso),scheduleRef:ref?{...ref}:null,
+    displaySettings:{showTime:true},sortOrder:Date.now()
+  };
+  b2CoreBlocks().push(block);
+  persistAppData();
+  if(input) input.value='';
+  renderRecordScreen();
+  showToast(ref?'✓ 今の予定にメモを追加しました':'✓ 寄り道にメモを追加しました');
+};
+
+/* Default the post-capture link selector to the currently active Schedule,
+   even when its owning Day is yesterday. The user can still explicitly
+   choose another Schedule or "予定に紐付けない". */
+const b31BaseRenderCapturedLinkSelectors=renderCapturedLinkSelectors;
+renderCapturedLinkSelectors=function(dayChanged=false,existingRecord=null){
+  b31BaseRenderCapturedLinkSelectors(dayChanged,existingRecord);
+  if(existingRecord||dayChanged) return;
+  const trip=recordTripById?.(document.getElementById('capturedTripSelect')?.value)||getRecordTrip?.()||getTrip();
+  const ref=b31ActiveScheduleRef(trip);
+  if(!trip||!ref) return;
+  const daySelect=document.getElementById('capturedDaySelect');
+  const slotSelect=document.getElementById('capturedSlotSelect');
+  const day=getDayFromTrip(trip,ref.day);
+  const plan=day?getActivePlanFromTrip(trip,ref.day):null;
+  if(!daySelect||!slotSelect||!day||!plan) return;
+  daySelect.value=String(ref.day);
+  const slots=plan.slots||[];
+  slotSelect.innerHTML=`<option value="">予定に紐付けない</option>`+slots.map(slot=>{
+    const c=selectedCandidate(slot);
+    return `<option value="${slot.id}">${escapeHtml(slotTimeLabel(slot))} · ${escapeHtml(cleanDisplayName(c?.name||'予定'))}</option>`;
+  }).join('');
+  if(slots.some(s=>String(s.id)===String(ref.slotId))) slotSelect.value=String(ref.slotId);
+  TRIPPER_CAMERA_STATE.autoScheduleRef={...ref};
+  TRIPPER_CAMERA_STATE.manualScheduleSelection=false;
+  syncCapturedPlaceFromSlot();
+  updateCapturedCoverAvailability();
+  try{ updateCapturedLinkSummary(); }catch(_e){}
+};
+
+/* Programmatic selector changes do not dispatch change events, so this only
+   marks a real user override. Once overridden, save never forces the active
+   Schedule back onto the photo. */
+document.addEventListener('change',event=>{
+  const id=event?.target?.id||'';
+  if((id==='capturedDaySelect'||id==='capturedSlotSelect')&&!TRIPPER_CAMERA_STATE?.editRecordId){
+    TRIPPER_CAMERA_STATE.manualScheduleSelection=true;
+  }
+});
+
+const b31BaseSaveCapturedRecord=saveCapturedRecord;
+saveCapturedRecord=async function(){
+  const trip=recordTripById?.(document.getElementById('capturedTripSelect')?.value);
+  const isEdit=!!TRIPPER_CAMERA_STATE?.editRecordId;
+  const ref=TRIPPER_CAMERA_STATE?.autoScheduleRef;
+  if(trip&&!isEdit&&!TRIPPER_CAMERA_STATE?.manualScheduleSelection&&ref&&b31ActiveRefStillValid(trip,ref)){
+    const daySelect=document.getElementById('capturedDaySelect');
+    const slotSelect=document.getElementById('capturedSlotSelect');
+    const day=getDayFromTrip(trip,ref.day),plan=day?getActivePlanFromTrip(trip,ref.day):null;
+    if(daySelect&&slotSelect&&day&&plan){
+      daySelect.value=String(ref.day);
+      const slots=plan.slots||[];
+      slotSelect.innerHTML=`<option value="">予定に紐付けない</option>`+slots.map(slot=>{
+        const c=selectedCandidate(slot);
+        return `<option value="${slot.id}">${escapeHtml(slotTimeLabel(slot))} · ${escapeHtml(cleanDisplayName(c?.name||'予定'))}</option>`;
+      }).join('');
+      slotSelect.value=String(ref.slotId);
+    }
+  }
+  return b31BaseSaveCapturedRecord();
+};
+
+/* Repair only the known B.3 regression shape: a Tripper Note camera photo
+   was saved unlinked on the next calendar Day while the previous Day's
+   Schedule is still ACTIVE. Same-day unlinked records are intentionally
+   left untouched so explicit "予定に紐付けない" choices remain respected. */
+function b31RepairCrossDayActiveRecords(trip){
+  const ref=b31ActiveScheduleRef(trip);
+  if(!trip||!ref?.slotId||!ref.actualStartAt) return false;
+  const startMs=new Date(ref.actualStartAt).getTime();
+  if(!Number.isFinite(startMs)) return false;
+  let changed=false;
+  for(const record of (trip.records||[])){
+    if(record?.captureSource!=='tripper_camera'||record?.slotId) continue;
+    if(Number(record.day)===Number(ref.day)) continue;
+    const capturedMs=new Date(record.capturedAt||record.createdAt||'').getTime();
+    if(!Number.isFinite(capturedMs)||capturedMs<startMs) continue;
+    record.day=ref.day;
+    record.planId=ref.planId;
+    record.slotId=ref.slotId;
+    record.autoAssignedBy='active_schedule_cross_day';
+    changed=true;
+  }
+  return changed;
+}
+
+/* An active Schedule remains actionable after midnight. Upcoming schedules
+   still require their own calendar day to start or skip. */
+const b31BaseScheduleIsToday=b3ScheduleIsToday;
+b3ScheduleIsToday=function(ctx,now=new Date()){
+  if(ctx){
+    const status=b3StatusForSlot(ctx.trip,ctx.day.day,ctx.slot);
+    if(status==='active'||status==='extended') return true;
+  }
+  return b31BaseScheduleIsToday(ctx,now);
+};
+
+const b31BaseRenderRecordScreen=renderRecordScreen;
+renderRecordScreen=function(){
+  const trip=getRecordTrip?.()||getHomeTrip()||getTrip();
+  if(trip&&b31RepairCrossDayActiveRecords(trip)) persistAppData();
+  b31BaseRenderRecordScreen();
+  const note=document.querySelector('#record .b1-phase-note');
+  if(note) note.innerHTML='<strong>Phase 4B.3.1</strong><span>進行中Scheduleは日付をまたいでもQuick Recordを引き継ぎます。</span>';
+};
+
+try{
+  const trip=getRecordTrip?.()||getHomeTrip()||getTrip();
+  if(trip&&b31RepairCrossDayActiveRecords(trip)) persistAppData();
+  APP_DATA.settings=APP_DATA.settings||{};
+  APP_DATA.settings.lastAppVersion='2.6.0-B.3.1';
+  persistAppData();
+}catch(err){ console.warn('v2.6.0-B.3.1 hotfix initialization failed',err); }
+
+
+/* =========================================================
+   v2.6.0-B.3.2 State Persistence + Cross-Day Linker Hotfix
+   - hydrate v2.1 Core DB before startup writes can overwrite it
+   - keep live Schedule state in compact rollback bridge
+   - recover the narrow B.3.1 overnight test regression when evidence exists
+   - Photo Linker prefers the durable ACTIVE Schedule across midnight
+   ========================================================= */
+function b32DurableActiveScheduleRef(trip){
+  if(!trip) return null;
+  const found=[];
+  for(const day of (trip.days||[])){
+    for(const plan of (day.plans||[])){
+      for(const slot of (plan.slots||[])){
+        const meta=normalizeScheduleFoundation(slot.v21||{},slot,day.date);
+        const status=meta.status;
+        const openByActual=!!meta.actualStartAt&&!meta.actualEndAt&&!slot.completedAt;
+        if(status==='active'||status==='extended'||openByActual){
+          found.push({
+            day:Number(day.day),planId:String(plan.id||''),slotId:String(slot.id||''),
+            actualStartAt:meta.actualStartAt||'',status:status==='extended'?'extended':'active'
+          });
+        }
+      }
+    }
+  }
+  if(!found.length) return null;
+  found.sort((a,b)=>new Date(b.actualStartAt||0)-new Date(a.actualStartAt||0));
+  return found[0];
+}
+
+function b32RefContext(trip,ref){
+  if(!trip||!ref?.slotId) return null;
+  return b3ScheduleContext(trip.id,ref.day,ref.planId,ref.slotId);
+}
+
+function b32ActiveRefStillValid(trip,ref){
+  const ctx=b32RefContext(trip,ref); if(!ctx) return false;
+  const meta=normalizeScheduleFoundation(ctx.slot.v21||{},ctx.slot,ctx.day.date);
+  return (meta.status==='active'||meta.status==='extended'||(!!meta.actualStartAt&&!meta.actualEndAt&&!ctx.slot.completedAt));
+}
+
+/* B.3.1 accidentally stripped slot.v21 from the compact bridge. If that build
+   was launched after midnight, a still-running previous-day open-ended Schedule
+   could be re-inferred as completed. Recover ONLY the narrow, evidence-backed
+   shape: exactly one previous-day evening/open-ended Schedule + an unlinked
+   Tripper Camera photo shortly after midnight. */
+function b32RecoverB31OvernightStateLoss(trip,now=new Date()){
+  if(!trip||b32DurableActiveScheduleRef(trip)) return null;
+  const today=localDateKey(now);
+  const candidates=[];
+  for(const day of (trip.days||[])){
+    if(addDaysKey(day.date,1)!==today) continue;
+    for(const plan of (day.plans||[])){
+      for(const slot of (plan.slots||[])){
+        if(slot.completedAt||slot.endTime) continue;
+        const startMin=slotSortMinutes(slot);
+        if(startMin<18*60) continue;
+        const meta=normalizeScheduleFoundation(slot.v21||{},slot,day.date);
+        if(meta.actualEndAt) continue;
+        if(!(meta.status==='completed'&&meta.stateSource==='legacy_date_inferred')) continue;
+        const plannedStart=meta.plannedStartAt?new Date(meta.plannedStartAt):null;
+        if(!plannedStart||Number.isNaN(plannedStart.getTime())) continue;
+        const evidence=(trip.records||[]).filter(record=>{
+          if(record?.captureSource!=='tripper_camera'||record?.slotId) return false;
+          const dt=new Date(record.capturedAt||record.createdAt||'');
+          if(Number.isNaN(dt.getTime())||localDateKey(dt)!==today||dt.getHours()>=6) return false;
+          const diff=dt.getTime()-plannedStart.getTime();
+          return diff>=0&&diff<=12*60*60*1000;
+        });
+        if(evidence.length) candidates.push({day,plan,slot,meta,evidence});
+      }
+    }
+  }
+  if(candidates.length!==1) return null;
+  const hit=candidates[0];
+  hit.slot.v21=normalizeScheduleFoundation(hit.slot.v21||{},hit.slot,hit.day.date);
+  hit.slot.v21.status='active';
+  hit.slot.v21.actualStartAt=hit.slot.v21.plannedStartAt||localDateTimeValue(hit.day.date,hit.slot.startTime||'');
+  hit.slot.v21.actualEndAt=null;
+  hit.slot.v21.stateSource='b3.2_recovered_b31_overnight_state_loss';
+  hit.slot.completedAt='';
+  return {day:Number(hit.day.day),planId:String(hit.plan.id||''),slotId:String(hit.slot.id||''),actualStartAt:hit.slot.v21.actualStartAt,status:'active'};
+}
+
+function b32PopulateCapturedSelectorsForRef(trip,ref){
+  if(!trip||!ref?.slotId) return false;
+  const daySelect=document.getElementById('capturedDaySelect');
+  const slotSelect=document.getElementById('capturedSlotSelect');
+  const day=getDayFromTrip(trip,ref.day);
+  const plan=day?getPlanFromTrip(trip,ref.day,ref.planId):null;
+  if(!daySelect||!slotSelect||!day||!plan) return false;
+  daySelect.value=String(ref.day);
+  const slots=plan.slots||[];
+  slotSelect.innerHTML=`<option value="">予定に紐付けない</option>`+slots.map(slot=>{
+    const c=selectedCandidate(slot);
+    return `<option value="${slot.id}">${escapeHtml(slotTimeLabel(slot))} · ${escapeHtml(cleanDisplayName(c?.name||'予定'))}</option>`;
+  }).join('');
+  if(!slots.some(s=>String(s.id)===String(ref.slotId))) return false;
+  slotSelect.value=String(ref.slotId);
+  syncCapturedPlaceFromSlot();
+  updateCapturedCoverAvailability();
+  try{ updateCapturedLinkSummary(); }catch(_e){}
+  return true;
+}
+
+/* Snapshot the running Schedule at camera launch. This makes the ownership
+   decision stable even if the clock crosses midnight while the camera is open. */
+const b32BaseStartInAppCamera=startInAppCamera;
+startInAppCamera=async function(role='entry'){
+  const trip=getRecordTrip?.()||getHomeTrip()||getTrip()||APP_DATA.trips?.[0];
+  const launchRef=b32DurableActiveScheduleRef(trip);
+  await b32BaseStartInAppCamera(role);
+  if(trip&&TRIPPER_CAMERA_STATE?.tripId===trip.id&&launchRef){
+    TRIPPER_CAMERA_STATE.launchScheduleRef={...launchRef};
+  }
+};
+
+const b32BaseRenderCapturedLinkSelectors=renderCapturedLinkSelectors;
+renderCapturedLinkSelectors=function(dayChanged=false,existingRecord=null){
+  b32BaseRenderCapturedLinkSelectors(dayChanged,existingRecord);
+  if(existingRecord||dayChanged) return;
+  const trip=recordTripById?.(document.getElementById('capturedTripSelect')?.value)||getRecordTrip?.()||getTrip();
+  if(!trip) return;
+  const ref=(TRIPPER_CAMERA_STATE?.launchScheduleRef&&b32ActiveRefStillValid(trip,TRIPPER_CAMERA_STATE.launchScheduleRef))
+    ?TRIPPER_CAMERA_STATE.launchScheduleRef
+    :b32DurableActiveScheduleRef(trip);
+  if(!ref) return;
+  if(b32PopulateCapturedSelectorsForRef(trip,ref)){
+    TRIPPER_CAMERA_STATE.autoScheduleRef={...ref};
+    TRIPPER_CAMERA_STATE.manualScheduleSelection=false;
+  }
+};
+
+const b32BaseSaveCapturedRecord=saveCapturedRecord;
+saveCapturedRecord=async function(){
+  const trip=recordTripById?.(document.getElementById('capturedTripSelect')?.value);
+  const isEdit=!!TRIPPER_CAMERA_STATE?.editRecordId;
+  const candidateRef=TRIPPER_CAMERA_STATE?.manualScheduleSelection?null:
+    ((TRIPPER_CAMERA_STATE?.launchScheduleRef&&b32ActiveRefStillValid(trip,TRIPPER_CAMERA_STATE.launchScheduleRef))
+      ?TRIPPER_CAMERA_STATE.launchScheduleRef:b32DurableActiveScheduleRef(trip));
+  if(trip&&!isEdit&&candidateRef&&b32PopulateCapturedSelectorsForRef(trip,candidateRef)){
+    TRIPPER_CAMERA_STATE.autoScheduleRef={...candidateRef};
+  }
+  return b32BaseSaveCapturedRecord();
+};
+
+async function b32BootstrapCoreState(){
+  try{
+    if(typeof hydrateV26CoreFoundation==='function'){
+      APP_DATA=normalizeAppData(await hydrateV26CoreFoundation(APP_DATA));
+    }
+    let recovered=false;
+    for(const trip of (APP_DATA.trips||[])){
+      const ref=b32RecoverB31OvernightStateLoss(trip);
+      if(ref){
+        recovered=true;
+        try{ b31RepairCrossDayActiveRecords(trip); }catch(_e){}
+      }
+    }
+    APP_DATA.settings=APP_DATA.settings||{};
+    APP_DATA.settings.lastAppVersion='2.6.0-B.3.2';
+    persistAppData();
+    renderAll();
+    const note=document.querySelector('#record .b1-phase-note');
+    if(note) note.innerHTML='<strong>Phase 4B.3.2</strong><span>進行中Scheduleの状態を再起動後も保持し、日付跨ぎ写真を同じScheduleへ紐付けます。</span>';
+    if(recovered) showToast('✓ 進行中Scheduleを復元しました');
+  }catch(err){
+    console.warn('v2.6.0-B.3.2 bootstrap failed',err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{ b32BootstrapCoreState(); });
+
+/* =========================================================
+   v2.6.0-B.3.3 Overnight Open-Ended Recovery Hotfix
+   Repair path for users who installed B.3.1/B.3.2 after the
+   ACTIVE state had already been lost. During a fresh camera
+   capture shortly after midnight, exactly one plausible
+   previous-day open-ended Schedule can be restored and used
+   by Photo Linker. This is intentionally narrow and only
+   applies to legacy date-inferred completion without an
+   explicit end/completion.
+   ========================================================= */
+function b33RecoverPreviousDayOpenEndedForCapture(trip,capturedAt){
+  if(!trip) return null;
+  const durable=b32DurableActiveScheduleRef?.(trip);
+  if(durable) return durable;
+
+  const captured=new Date(capturedAt||TRIPPER_CAMERA_STATE?.capturedAt||Date.now());
+  if(Number.isNaN(captured.getTime())) return null;
+  const capturedDate=localDateKey(captured);
+  /* Recovery is only for the overnight window. Daytime capture must never
+     resurrect yesterday's plan. */
+  if(captured.getHours()>=6) return null;
+
+  const candidates=[];
+  for(const day of (trip.days||[])){
+    if(addDaysKey(day.date,1)!==capturedDate) continue;
+    const plan=getActivePlanFromTrip(trip,day.day);
+    if(!plan) continue;
+    for(const slot of (plan.slots||[])){
+      if(slot.completedAt||slot.endTime) continue;
+      const meta=normalizeScheduleFoundation(slot.v21||{},slot,day.date);
+      if(meta.actualEndAt||meta.manualEndOverride||meta.status==='skipped') continue;
+      /* Only repair the specific state-loss signature produced by the old
+         date inference. Never revive an explicitly completed Schedule. */
+      if(!(meta.status==='completed'&&meta.stateSource==='legacy_date_inferred')) continue;
+      const plannedStart=meta.plannedStartAt?new Date(meta.plannedStartAt):null;
+      if(!plannedStart||Number.isNaN(plannedStart.getTime())) continue;
+      if(plannedStart.getHours()<18) continue;
+      const gap=captured.getTime()-plannedStart.getTime();
+      if(gap<0||gap>12*60*60*1000) continue;
+      candidates.push({day,plan,slot,meta,plannedStart});
+    }
+  }
+  if(candidates.length!==1) return null;
+
+  const hit=candidates[0];
+  hit.slot.v21=normalizeScheduleFoundation(hit.slot.v21||{},hit.slot,hit.day.date);
+  hit.slot.v21.status='active';
+  hit.slot.v21.actualStartAt=hit.slot.v21.actualStartAt||hit.slot.v21.plannedStartAt||hit.plannedStart.toISOString();
+  hit.slot.v21.actualEndAt=null;
+  hit.slot.v21.stateSource='b3.3_recovered_overnight_open_ended_capture';
+  hit.slot.completedAt='';
+
+  const ref={
+    day:Number(hit.day.day),
+    planId:String(hit.plan.id||''),
+    slotId:String(hit.slot.id||''),
+    actualStartAt:hit.slot.v21.actualStartAt||'',
+    status:'active'
+  };
+  try{
+    APP_DATA.settings=APP_DATA.settings||{};
+    APP_DATA.settings.b33OvernightRecovery={
+      recoveredAt:new Date().toISOString(),
+      tripId:String(trip.id||''),slotId:ref.slotId,capturedAt:captured.toISOString()
+    };
+    persistAppData();
+  }catch(err){ console.warn('B3.3 recovery persist failed',err); }
+  return ref;
+}
+
+const b33BaseRenderCapturedLinkSelectors=renderCapturedLinkSelectors;
+renderCapturedLinkSelectors=function(dayChanged=false,existingRecord=null){
+  b33BaseRenderCapturedLinkSelectors(dayChanged,existingRecord);
+  if(existingRecord||dayChanged) return;
+  const trip=recordTripById?.(document.getElementById('capturedTripSelect')?.value)||getRecordTrip?.()||getTrip();
+  if(!trip) return;
+  let ref=(TRIPPER_CAMERA_STATE?.launchScheduleRef&&b32ActiveRefStillValid(trip,TRIPPER_CAMERA_STATE.launchScheduleRef))
+    ?TRIPPER_CAMERA_STATE.launchScheduleRef
+    :b32DurableActiveScheduleRef(trip);
+  if(!ref){
+    ref=b33RecoverPreviousDayOpenEndedForCapture(trip,TRIPPER_CAMERA_STATE?.capturedAt||new Date().toISOString());
+  }
+  if(ref&&b32PopulateCapturedSelectorsForRef(trip,ref)){
+    TRIPPER_CAMERA_STATE.autoScheduleRef={...ref};
+    TRIPPER_CAMERA_STATE.launchScheduleRef={...ref};
+    TRIPPER_CAMERA_STATE.manualScheduleSelection=false;
+    try{ showToast('✓ 進行中Scheduleを復元して写真を紐付けます'); }catch(_e){}
+    try{ renderRecordScreen(); }catch(_e){}
+  }
+};
+
+const b33BaseSaveCapturedRecord=saveCapturedRecord;
+saveCapturedRecord=async function(){
+  const trip=recordTripById?.(document.getElementById('capturedTripSelect')?.value)||getRecordTrip?.()||getTrip();
+  if(trip&&!TRIPPER_CAMERA_STATE?.editRecordId&&!TRIPPER_CAMERA_STATE?.manualScheduleSelection){
+    let ref=(TRIPPER_CAMERA_STATE?.launchScheduleRef&&b32ActiveRefStillValid(trip,TRIPPER_CAMERA_STATE.launchScheduleRef))
+      ?TRIPPER_CAMERA_STATE.launchScheduleRef
+      :b32DurableActiveScheduleRef(trip);
+    if(!ref) ref=b33RecoverPreviousDayOpenEndedForCapture(trip,TRIPPER_CAMERA_STATE?.capturedAt||new Date().toISOString());
+    if(ref&&b32PopulateCapturedSelectorsForRef(trip,ref)){
+      TRIPPER_CAMERA_STATE.autoScheduleRef={...ref};
+      TRIPPER_CAMERA_STATE.launchScheduleRef={...ref};
+    }
+  }
+  return b33BaseSaveCapturedRecord();
+};
+
+const b33BaseRenderRecordScreen=renderRecordScreen;
+renderRecordScreen=function(){
+  b33BaseRenderRecordScreen();
+  const note=document.querySelector('#record .b1-phase-note');
+  if(note) note.innerHTML='<strong>Phase 4B.3.3</strong><span>旧版で失われた深夜の進行中Scheduleも、撮影時に安全条件を満たせば復元します。</span>';
+};
+
+try{
+  APP_DATA.settings=APP_DATA.settings||{};
+  APP_DATA.settings.lastAppVersion='2.6.0-B.3.3';
+  persistAppData();
+}catch(err){ console.warn('v2.6.0-B.3.3 version marker not persisted',err); }

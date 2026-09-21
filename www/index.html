@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Tripper Note</title>
-<link rel="stylesheet" href="css/style.css?v=258B31">
+<link rel="stylesheet" href="css/style.css?v=260B34">
 <style id="b124-lodging-field-hotfix">
 /* v2.5.8-B.1.2.4: hard-lock lodging date/time proportions on iOS WKWebView. */
 .lodging-modal-fields .lodging-date-grid{display:flex!important;grid-template-columns:none!important;gap:8px!important;width:100%!important;min-width:0!important;max-width:100%!important;overflow:hidden!important;}
@@ -40,7 +40,7 @@
       </div>
       <p class="section-sub">複数の旅行をこの端末に保存できます。</p>
       <div id="tripList"></div>
-      <div class="coming">v2.5.8-B.3.1では、場所名の自動補完に加え、未確定の場所も安全に保存できます。</div>
+      <div class="coming">v2.6.0-B.3.4では、Textの表示時刻をPickerから選べるようになりました。</div>
     </section>
 
     <section id="record" class="screen">
@@ -95,7 +95,7 @@
         </div>
       </div>
       <div class="card"><div class="title">アカウント</div><div class="desc">ログイン・共有・共同編集は将来実装します。</div></div>
-      <div class="card"><div class="title">Tripper Note v2.5.8-B.3.1</div><div class="desc">Phase 3 Hotfix。場所未確定保存と場所変更時の地図詳細同期を追加しました。</div></div>
+      <div class="card"><div class="title">Tripper Note v2.6.0-B.3.4</div><div class="desc">Text Time Picker UX Hotfix。作成時刻から30分前まで、表示時刻を選択できます。</div></div>
     </section>
 
     <section id="tripDetail" class="screen">
@@ -387,11 +387,20 @@
   </div>
 </div>
 
+<div id="b34TextTimeSheet" class="b34-time-overlay" hidden onclick="if(event.target===this) b34CloseTextTimePicker()" onkeydown="b34TextTimeKeydown(event)">
+  <section class="b34-time-sheet" role="dialog" aria-modal="true" aria-labelledby="b34TextTimeTitle" aria-describedby="b34TextTimeHint">
+    <div class="b34-time-handle" aria-hidden="true"></div>
+    <header class="b34-time-header"><h2 id="b34TextTimeTitle">表示時刻</h2><p id="b34TextTimeHint">作成時刻から30分前まで選べます。<br>時刻は作成時刻を基準に1分ずつ変わります。</p></header>
+    <div id="b34TextTimeOptions" class="b34-time-options" role="group" aria-label="表示時刻の候補"></div>
+    <footer class="b34-time-actions"><button type="button" onclick="b34CloseTextTimePicker()">キャンセル</button><button type="button" id="b34TextTimeSave" onclick="b34SaveTextTime()" disabled>保存</button></footer>
+  </section>
+</div>
 <div id="saveToast" class="toast">✓ 保存しました</div>
-<script src="js/data.js?v=258B31"></script>
-<script src="js/storage.js?v=258B31"></script>
-<script src="js/navigation.js?v=258B31"></script>
-<script src="js/mediaStore.js?v=258B31"></script>
-<script src="js/app.js?v=258B31"></script>
+<script src="js/data.js?v=260B34"></script>
+<script src="js/coreStore.js?v=260B34"></script>
+<script src="js/storage.js?v=260B34"></script>
+<script src="js/navigation.js?v=260B34"></script>
+<script src="js/mediaStore.js?v=260B34"></script>
+<script src="js/app.js?v=260B34"></script>
 </body>
 </html>
