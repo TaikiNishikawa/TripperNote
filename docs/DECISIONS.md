@@ -5,6 +5,8 @@
 根拠節：Product思想／各確定仕様節／Storage Architecture／実装履歴／今一番最初に対応する内容。
 以下のIDは本書での参照用。DEC-001〜012は決定日が原本にないため不明とし、文書整理日を採用日にしない。実装・確認の詳細と制限は[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)を参照する。
 
+2026-09-21追記：B.3.4に関する更新は、本タスクのFounder承認・実装／自動確認報告と今回のFounder実機報告を根拠とする。引き継ぎ時点の記録とは区別し、今回の反映日を過去の仕様採用日・実機実施日としない。
+
 | ID | 状態 | 決定・保護事項 | 根拠・理由 |
 |---|---|---|---|
 | DEC-001 | 確定 | 事実は厳密、体験は柔らかく。手動優先、Undo・修正、予定外も正常。 | Product思想。 |
@@ -14,11 +16,11 @@
 | DEC-005 | 実装・A.2合格 | CoreはIndexedDB、localStorageは小さい互換・設定中心。 | A.1のV25/V26二重保存でQuotaExceededError。 |
 | DEC-006 | 実装・B.1.1合格 | Candidate情報の分離を維持。 | slot-level timeNoteが別候補の内容を表示していた。 |
 | DEC-007 | 実装・B.2.1合格 | 終了済み・開始前のCamera不可、Text read-only、＋維持。 | 過去旅行でもCameraが起動した問題。 |
-| DEC-008 | 実装・検証経過あり | 起動時Core読戻しと限定Overnight復旧を維持。 | B.3.1で再起動後状態喪失、B.3.2修正、B.3.3日跨ぎ所属合格。追加永続化確認は未完。 |
+| DEC-008 | 実装・検証経過あり | 起動時Core読戻しと限定Overnight復旧を維持。 | B.3.1で再起動後状態喪失、B.3.2修正、B.3.3日跨ぎ所属合格。引き継ぎ時点で未完だった再起動保持は、B.3.4のText時刻・同じActive所属について確認報告あり。全復旧ケースの合格へ広げない。 |
 | DEC-009 | 確定・B.3.3確認 | 日付よりActive Schedule優先。 | 翌日写真/Textを前日継続中Scheduleへ所属。 |
 | DEC-010 | 確定 | Text createdAt不変、timelineTimeはcreatedAt−30分〜createdAt。Canvasは適用外。 | 事実時刻を守り、記録時刻を調整可能にする。 |
 | DEC-011 | 確定・将来方針 | Mediaには信頼できるcapturedAt必須、Mergeは確認。Original保持・非破壊trim。 | 時系列と原本を保護する。 |
-| DEC-012 | 次工程・未実装 | B.3.4候補：Text時刻Picker、日跨ぎ、Toast延長。 | ISO手入力と短い注意表示の改善希望。 |
+| DEC-012 | DECIDED / IMPLEMENTED・実機は範囲限定CONFIRMED | B.3.4：専用Bottom Sheet、秒・ミリ秒を保持する30分候補、現在Active所属の限定維持、Text時刻編集の注意・エラーToastのみ4000ms。他Toastは1900ms維持。 | Founder承認に基づく実装。Picker・保存・Active所属・30分前候補・日跨ぎ・Cancel・再起動後保持は実機報告あり。Toast時間と内部精度は自動確認と実機確認を区別する。 |
 
 ## Documentation Review Fixで採用した協働方針
 以下は今回のFounder依頼を根拠とする新規Decision。決定日は2026-09-18（今回の依頼日）であり、過去の採用日を推定したものではない。状態DECIDEDは方針採用を意味し、アプリ実装・実機確認を意味しない。
@@ -35,7 +37,7 @@
 関連文書：[LEARNING_AND_COLLABORATION.md](LEARNING_AND_COLLABORATION.md)、[MASTER_SPEC.md](MASTER_SPEC.md)、[AGENTS.md](../AGENTS.md)。実装・検証状態：協働ルールを文書化。アプリ変更・実機検証は今回の対象外。
 
 ## 未決定
-Pickerの具体実装、Toastの最終秒数（4〜5秒は目安）、未記載のDB詳細、将来機能の詳細。候補や希望を実装済み・採用済みの技術方式に格上げしない。
+未記載のDB詳細、将来機能の詳細。Cross-Day Schedule監査内容の扱いは別Issueとして保留し、今回実装・正式仕様化しない。B.3.4のPicker方式と局所的なToast時間はDEC-012のとおり採用・実装済みだが、未確認項目を実機合格へ格上げしない。
 
 ## 今後の追記形式
 ID／状態（提案・採用・撤回等）／決定日（不明なら不明）／現行仕様／変更内容／理由／影響／根拠となるユーザー決定／関連文書／実装・検証状態を記録する。ユーザーの採用前に提案で現行仕様を上書きしない。

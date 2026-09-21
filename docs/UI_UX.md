@@ -15,14 +15,16 @@ Record画面下部固定：＋ / カメラ / 今のことを記録… / ↑。
 カメラは既存Cameraへ、Textはその場で送信。＋は将来Photo/Video Import、Free Canvas、Map、その他Blockへ。
 B.2.1のGuard：終了済み・開始前旅行ではCameraを起動せず、Textはread-only。＋は残す。
 
-## Text時刻編集：次工程B.3.4（未実装）
-現状は2026-09-17T00:56のような文字入力。ISO文字列の手入力からiOSらしい時刻入力UIへ変更する。可能ならBottom Sheetまたはdatetime-local/time picker風で、キーボード入力を使わない。具体方式は未決定。
+## Text時刻編集：B.3.4（IMPLEMENTED・実機は範囲限定CONFIRMED）
+この節の更新根拠は、引き継ぎとは別に、本タスクのFounder承認・実装／自動確認報告と2026-09-21受領のFounder実機報告。ISO手入力を専用Bottom Sheet「表示時刻」へ置換した。候補をスクロールして選択し、保存／キャンセルする。Bottom Sheet表示・キーボード入力が出ないこと・時刻変更保存は実機CONFIRMED。
 
 選択可能範囲はcreatedAt−30分からcreatedAtまで、両端を含む。日付跨ぎを扱い、未来および30分より前は不可。例：2026/09/17 00:10作成なら2026/09/16 23:40〜2026/09/17 00:10。日付を意識させすぎない自然な操作を目指す。
 
-createdAtを絶対に変更せず、timelineTimeのみ変更。変更後はChronologyに応じて同じSchedule内、必要なら所属先を再評価する設計を維持する。最初は現在Active Schedule内のTextを30分以内で動かす実機確認を行う。
+createdAtを絶対に変更せず、timelineTimeのみ変更する制約を維持。現在Active Scheduleに所属しているTextの時刻編集では既存所属を保持し、それ以外の既存再所属処理は変更しない。現在Active内の時刻変更、日跨ぎの「前日 HH:mm」表示・保存後の所属維持、Cancelで時刻・所属を変えないこと、完全終了／再起動後のtimelineTime・同じActive所属保持は実機CONFIRMED。一般的なCross-Day Scheduleの新ルールを採用した意味ではない。
 
-現在の注意/エラーToastの表示時間を確認し、読み切れる程度へ延長する。4〜5秒は検討目安であり、確定値ではない。無関係なToast全体へ変更を広げない。
+基本候補は作成時刻Cから`C - n × 60,000ms`（n=0〜30）で生成し、表示の分と内部timestampを分ける。秒・ミリ秒を切り捨てず、範囲内の既存timelineTimeが基本候補にない場合も「現在の設定」として保持する。ちょうど30分前の候補の選択・保存は実機CONFIRMEDだが、内部の秒・ミリ秒精度は自動確認のみであり、実機画面による直接確認ではない。
+
+Text時刻編集の注意・エラーToastのみ4000ms、他Toastは既定1900msを維持する実装を採用済み。コードレビュー・自動確認済み。約4秒の実表示時間は安全に再現できる実機操作がないため未確認。他Toastの約1.9秒も今回改めて実機確認済みとはしない。項目別Statusは[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)を参照する。
 
 ## 通知（確定仕様、実装予定）
 | Style | レベル | 挙動 |
