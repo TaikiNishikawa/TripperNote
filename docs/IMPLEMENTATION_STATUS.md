@@ -10,6 +10,7 @@ B.3.4は本タスクのFounder承認・実装完了報告・自己レビュー�
 | Status | 意味 |
 |---|---|
 | DECIDED | 仕様・方針として確定。実装・実機確認の証明ではない。 |
+| NOT IMPLEMENTED | 採用済みでも、対象機能の実装をまだ行っていない。 |
 | IMPLEMENTED | 実装済みと報告されている。実機合格を意味しない。 |
 | CONFIRMED | 明記された範囲に実機確認の記録がある。全機能の合格を意味しない。 |
 | PROPOSED | 提案・候補。実装済みや正式採用へ格上げしない。 |
@@ -32,6 +33,7 @@ Statusは単一の進捗順位ではない。不具合が実機で発見され�
 | v2.6.0-B.3.2 / State Persistence + Cross-Day Linker Hotfix | IMPLEMENTED | UNKNOWN：既存00:01写真の削除で復旧証拠がなく、回復できず。 | Core起動時読戻しの修正報告はあるが、実機合格と断定しない。 |
 | v2.6.0-B.3.3 / Overnight Recovery Hotfix | IMPLEMENTED | CONFIRMED（限定）：00:53写真がDAY 1・9月16日23:55開始ScheduleへLINKED・保存表示、DAY 2空。00:56「深夜のテキストテスト」も同Schedule所属。 | 引き継ぎ時点では再起動後のACTIVE維持は未確認。後続B.3.4のTextに関する確認は下記に別記し、この版全体の合格へ広げない。限定復旧条件を維持。 |
 | v2.6.0-B.3.4 / Text Time Picker UX Hotfix | IMPLEMENTED | CONFIRMED（範囲限定）：Picker、保存、現在Active所属維持、30分前候補、日付跨ぎ、Cancel、完全終了・再起動後のText時刻と同じActive所属の保持。下記の項目別記録を参照。 | Toast時間・内部の秒／ミリ秒は実機未確認。全項目を一括でCONFIRMEDにしない。 |
+| Cross-Day Schedule v1 / 新規作成・編集 | NOT IMPLEMENTED（仕様はDECIDED） | UNKNOWN：実機未確認。 | B.3.4のText時刻編集や既存Activeの日跨ぎ所属とは別Issue。Version・実装工程は未決定。 |
 
 引き継ぎ時点のISO手入力では、2026/09/17 00:56作成に対する00:25（31分前）の保存拒否はCONFIRMED。この過去結果をB.3.4の全境界の実機合格へ転用しない。
 
@@ -66,5 +68,5 @@ DECIDED：A.2保存方針、Candidate情報分離、Quick Record Guard、±15分
 ## 更新ルール / SPEC GAP
 - 新しい実装・実機結果は対象版、確認項目、結果、根拠、残課題を記録する。日付が不明なら不明のままにする。
 - 原本再照合、Baselineの個別テスト記録は未完。再起動保持はB.3.4のText時刻・同じActive所属についてのみ上記のとおり確認済み。
-- Cross-Day Scheduleの監査内容は別Issueとして保留する。今回の実装・正式仕様には取り込まず、B.3.4の限定的なActive所属維持と区別する。
+- Cross-Day Schedule v1は今回のFounder DecisionでDECIDED。実装はNOT IMPLEMENTED、実機StatusはUNKNOWN。B.3.4で確認した限定的なActive所属維持を、Scheduleの翌日終了入力・保存の実装や実機合格として扱わない。実装上の懸念は[ROADMAP.md](ROADMAP.md)に記録する。
 - 現在のworking treeと仕様の機能上の差異は今回未調査。コードから製品仕様を補完しない。

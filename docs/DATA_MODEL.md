@@ -7,7 +7,7 @@
 
 | 対象 | 明記された項目・状態 | 制約 |
 |---|---|---|
-| Schedule | plannedStartAt / plannedEndAt / actualStartAt / actualEndAt | plannedとactualを別保持。 |
+| Schedule | plannedStartAt / plannedEndAt / actualStartAt / actualEndAt | plannedとactualを別保持。plannedStartAt / plannedEndAtは日付を含む完全なdatetime。 |
 | Schedule状態 | UPCOMING / ACTIVE / EXTENDED / COMPLETED / SKIPPED | 実旅行上Activeは原則1つ。全遷移条件は未記載。 |
 | Choice Slot状態 | CHOICE_UNSELECTED / SELECTED | Schedule状態と区別。 |
 | ChoiceSlot | selectedCandidateId | 初期null。ユーザー選択で確定。 |
@@ -23,6 +23,13 @@ createdAt − 30分 ≤ timelineTime ≤ createdAt。ちょうど30分前は有�
 例：createdAt 2026/09/17 00:56、00:25は31分前で無効（拒否確認済み）。
 例：createdAt 2026/09/17 00:10、有効範囲は前日23:40〜当日00:10。
 CanvasのtimelineTimeは後から自由変更でき、Textの制限を適用しない。
+
+## Cross-Day Schedule v1の不変条件（DECIDED・未実装）
+初期対応の終了日は開始日と同じ日または翌日。翌日はユーザーが明示選択する。開始時刻より早い終了時刻から翌日を自動確定しない。当日の同時刻終了は0時間のため保存不可、翌日の同時刻終了は24時間として許可する。
+
+`plannedStartAt` / `plannedEndAt` は日付を含む完全なdatetimeとして保持する。例：`2026-10-06T23:00:00` → `2026-10-07T01:00:00`。UI上の `startTime` / `endTime` だけで日跨ぎを表現しない。予定時間長は `plannedEndAt - plannedStartAt` のdatetime差から算出し、この例は120分となる。既存文書の論理項目 `plannedDuration` に対応する実装上の名称は別途確認する。既存フィールドでの実現を優先し、DB・IndexedDBのschema、localStorage構造、migrationは変更対象としない。
+
+Scheduleの所属DAYは開始日とし、TimelineのカードはそのDAYだけに置く。Activeは日付境界だけで解除せず、翌日のText・Photo等は既存のActive優先に従って所属できる。actualStartAt / actualEndAt、createdAt / capturedAt、およびText・Photoの基本仕様は変更しない。
 
 ## 所属とChronology
 Active Scheduleを日付境界より優先する。写真・Textが翌日でも継続中の前日Scheduleへ所属できる。Text時刻変更後はChronologyに応じて同じSchedule内または必要な所属先再評価を維持する。厳密な再所属アルゴリズムは未記載。

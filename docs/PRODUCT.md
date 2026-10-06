@@ -27,6 +27,13 @@ Trip単位で「🌿 ゆったり」「⚖️ バランス」「⏱ しっかり
 ## Schedule
 plannedとactualは分離。実旅行上のActive Scheduleは原則1つ。ユーザー手動操作が最優先。
 
+### Cross-Day Schedule v1（DECIDED・未実装）
+Founderの今回の決定により、開始日から翌日に終了する予定を1つのScheduleとして正式に扱う。初期対応の終了日は「当日」または「翌日」の2択で、翌日終了はユーザーが明示的に選択して確定する。終了時刻が開始時刻より早い場合、翌日扱いを提案してよいが、ユーザー操作なしに自動確定・保存しない。
+
+開始と終了が同時刻で当日終了なら0時間のため保存不可。翌日終了なら24時間のScheduleとして許可する。日跨ぎScheduleは開始したDAYに所属し、翌日へ同じScheduleカードを複製しない。0時を跨いでも同一ScheduleのActiveを継続でき、日付境界だけでActiveを解除しない。翌日作成のText・Photo等がActive Scheduleへ所属できる既存仕様を維持する。
+
+2日以上続くSchedule、旅行最終日を越えるSchedule、日付を跨いで遅れて開始する際の新ルール、翌日側の継続カード表示、新しい一般的なRecord再所属アルゴリズムはv1の対象外・未確定とする。
+
 自動・簡易開始/終了時刻が対応する予定時刻の±15分以内ならactualをplannedへSnapする。境界の±15分を含む。手動編集したactualには適用しない。
 
 重複がAまたはBの全時間の50%以上ならChoiceSlot（予定束）。例：13:00–14:00と13:30–14:30は30分重複で該当。初期selectedCandidateIdはnull。候補を自動確定せず、ユーザー選択時に正式Scheduleになる。移動時間は前Schedule→Candidate、Candidate→次Scheduleを候補ごとに動的計算する。

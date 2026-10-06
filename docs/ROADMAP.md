@@ -39,8 +39,12 @@ Founder依頼に基づき、実装状況、恒久Safety Guard、学びながら�
 ### 保護する回帰項目
 既存旅行・12 Photos・写真IndexedDB、A.2保存方式、B.1.1候補分離、B.2.1 Guard、B.3 Snapと手動actual尊重、B.3.3日跨ぎ写真/Text所属。今回のText実機結果でこれら全体を再確認済みにしない。
 
-### 別Issue：Cross-Day Schedule監査
-監査内容の扱いはFounder判断待ち。今回まだ実装・正式仕様化しない。B.3.4で承認・実装した現在Active所属の限定的な維持を超えるルールは追加しない。
+### 別Issue：Cross-Day Schedule v1（DECIDED / NOT IMPLEMENTED）
+Founderが開始日から翌日に終了するScheduleを正式採用。Product仕様は[PRODUCT.md](PRODUCT.md)、入力・表示は[UI_UX.md](UI_UX.md)、日時と時間長の不変条件は[DATA_MODEL.md](DATA_MODEL.md)、決定は[DECISIONS.md](DECISIONS.md)を参照する。この文書工程ではアプリコードを変更せず、工程順・Version・実装日を新たに確定しない。B.3.4で確認したTextのActive所属は、日跨ぎScheduleの作成・編集が実装済みという証拠にはならない。
+
+Implementation Concern：現在のSchedule編集処理では、`startTime / endTime` と `slot.v21.plannedStartAt / plannedEndAt` が同期しない可能性が監査で確認されている。実装時に新規作成・編集・再表示・保存後読戻しの整合性を確認する。終了日時を同日で作る処理、時刻だけから求める時間長、早い終了時刻の拒否も監査で確認された。これは実装課題でありProduct仕様ではない。
+
+実装時の確認観点：当日／翌日の明示選択と自動確定禁止、同時刻の0時間拒否／24時間許可、`plannedEndAt - plannedStartAt` の時間長、開始DAYに1枚だけの表示、0時を跨ぐActiveと翌日Text・Photo所属。既存の±15分Snap、planned/actual分離、B.3.3限定復旧、ChoiceSlot、Fixed / Flexible、保存・読戻しを回帰確認する。実機未確認をCONFIRMEDにしない。
 
 ## その後の順序
 1. Text timelineTime picker：IMPLEMENTED。上記の範囲は実機CONFIRMED、未確認項目は残す。

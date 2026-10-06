@@ -10,6 +10,11 @@ Design North StarはRodeo系iOS UI。Warm ivory / cream背景、White surfaces�
 
 Homeは巨大Heroを使わず、現在の旅行／NOW／NEXT／Navigation／Weather／Recent Record優先。Trip DetailのHero画像は残す。CalendarはRodeo系、My PageはAirbnb Profile系の構造を参考とする。
 
+## Cross-Day Schedule入力・表示（DECIDED・未実装）
+Scheduleの終了日は初期対応で「当日／翌日」から選ぶ。翌日終了はユーザーが明示的に選択・確定する。終了時刻が開始時刻より前なら「翌日1:00として設定しますか？」のように提案してよいが、自動で翌日に確定・保存しない。具体的な操作部品や文言は未確定。
+
+日跨ぎScheduleカードは開始DAYに1枚だけ表示し、翌日側へ複製しない。終了が翌日であることを区別できる表示とする。例えば「23:00 → 翌1:00」は表示案であり、具体的な表記は未決定。Active中に翌日作成されたText・Photo等は、既存のActive優先仕様に従い同じScheduleへ所属できる。翌日側の継続カード表示はv1対象外。
+
 ## Quick Record Bar
 Record画面下部固定：＋ / カメラ / 今のことを記録… / ↑。
 カメラは既存Cameraへ、Textはその場で送信。＋は将来Photo/Video Import、Free Canvas、Map、その他Blockへ。
@@ -20,7 +25,7 @@ B.2.1のGuard：終了済み・開始前旅行ではCameraを起動せず、Text
 
 選択可能範囲はcreatedAt−30分からcreatedAtまで、両端を含む。日付跨ぎを扱い、未来および30分より前は不可。例：2026/09/17 00:10作成なら2026/09/16 23:40〜2026/09/17 00:10。日付を意識させすぎない自然な操作を目指す。
 
-createdAtを絶対に変更せず、timelineTimeのみ変更する制約を維持。現在Active Scheduleに所属しているTextの時刻編集では既存所属を保持し、それ以外の既存再所属処理は変更しない。現在Active内の時刻変更、日跨ぎの「前日 HH:mm」表示・保存後の所属維持、Cancelで時刻・所属を変えないこと、完全終了／再起動後のtimelineTime・同じActive所属保持は実機CONFIRMED。一般的なCross-Day Scheduleの新ルールを採用した意味ではない。
+createdAtを絶対に変更せず、timelineTimeのみ変更する制約を維持。現在Active Scheduleに所属しているTextの時刻編集では既存所属を保持し、それ以外の既存再所属処理は変更しない。現在Active内の時刻変更、日跨ぎの「前日 HH:mm」表示・保存後の所属維持、Cancelで時刻・所属を変えないこと、完全終了／再起動後のtimelineTime・同じActive所属保持は実機CONFIRMED。これは上記Cross-Day Schedule v1の実装・実機確認を意味しない。
 
 基本候補は作成時刻Cから`C - n × 60,000ms`（n=0〜30）で生成し、表示の分と内部timestampを分ける。秒・ミリ秒を切り捨てず、範囲内の既存timelineTimeが基本候補にない場合も「現在の設定」として保持する。ちょうど30分前の候補の選択・保存は実機CONFIRMEDだが、内部の秒・ミリ秒精度は自動確認のみであり、実機画面による直接確認ではない。
 

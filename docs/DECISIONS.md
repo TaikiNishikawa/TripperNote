@@ -36,8 +36,19 @@
 
 関連文書：[LEARNING_AND_COLLABORATION.md](LEARNING_AND_COLLABORATION.md)、[MASTER_SPEC.md](MASTER_SPEC.md)、[AGENTS.md](../AGENTS.md)。実装・検証状態：協働ルールを文書化。アプリ変更・実機検証は今回の対象外。
 
+## Cross-Day Schedule v1：Founder決定
+根拠は今回のFounder Decision。過去の開発引き継ぎから推定した仕様ではない。採用日は記録上未記載として扱い、文書反映日を採用日に読み替えない。以下はいずれもDECIDEDであり、実装・実機確認はまだない。
+
+| ID | 状態 | 決定内容 | 理由・影響 |
+|---|---|---|---|
+| DEC-019 | DECIDED / NOT IMPLEMENTED | 開始日から翌日に終了するScheduleを1つのScheduleとして正式にサポートする。初期対応は当日／翌日終了まで。 | Founderの正式採用。2日以上続く予定と旅行最終日を越える予定はv1対象外。 |
+| DEC-020 | DECIDED / NOT IMPLEMENTED | 終了日は「当日／翌日」をユーザーが明示選択する。終了時刻が開始時刻より早い場合、翌日を提案してよいが、操作なしの自動確定・保存は禁止。 | Founderが翌日扱いを最終決定する。 |
+| DEC-021 | DECIDED / NOT IMPLEMENTED | 開始・終了が同時刻なら、当日終了は0時間で保存不可、翌日終了は24時間として許可。 | Founderの同一時刻に関する決定。 |
+| DEC-022 | DECIDED / NOT IMPLEMENTED | 日跨ぎScheduleは開始DAYに所属し、Timelineカードは開始DAYにのみ表示する。Activeは0時を跨いでも継続可能で、日付境界だけで解除しない。 | 既存のActive優先と翌日Text・Photo所属を維持。カードの翌日複製はしない。 |
+| DEC-023 | DECIDED / NOT IMPLEMENTED | plannedStartAt / plannedEndAtを日付付きの完全なdatetimeで保持し、予定時間長を両datetimeの差から算出する。時刻だけでは日跨ぎを表現しない。 | 23:00→翌01:00を120分として扱う。既存フィールドを優先し、DB schema・保存構造・migrationは今回変更しない。 |
+
 ## 未決定
-未記載のDB詳細、将来機能の詳細。Cross-Day Schedule監査内容の扱いは別Issueとして保留し、今回実装・正式仕様化しない。B.3.4のPicker方式と局所的なToast時間はDEC-012のとおり採用・実装済みだが、未確認項目を実機合格へ格上げしない。
+未記載のDB詳細、将来機能の詳細。Cross-Day Schedule v1はDEC-019〜023の範囲で正式採用したが未実装。2日以上続く予定、旅行最終日を越える予定、日付を跨いで遅れて開始する新ルール、翌日側の継続カード表示、新しい一般的なRecord再所属アルゴリズムは未確定・v1対象外。B.3.4のPicker方式と局所的なToast時間はDEC-012のとおり採用・実装済みだが、未確認項目を実機合格へ格上げしない。
 
 ## 今後の追記形式
 ID／状態（提案・採用・撤回等）／決定日（不明なら不明）／現行仕様／変更内容／理由／影響／根拠となるユーザー決定／関連文書／実装・検証状態を記録する。ユーザーの採用前に提案で現行仕様を上書きしない。
