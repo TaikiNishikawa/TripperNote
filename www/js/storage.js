@@ -42,6 +42,56 @@ function durationMinutes(startTime,endTime){
   const diff=(eh*60+em)-(sh*60+sm); return diff>0?diff:null;
 }
 
+/* Cross-Day Schedule v1, Step A.1: pure helpers only; not wired into normalization,
+   UI or persistence. Existing mismatches must wait for an explicit editor save.
+   UTC below only numbers civil calendar days, not actual instants. Planned
+   strings have no timezone; duration is wall-clock time, independent of DST. */
+function isSchedulePlannedDateKey(value){
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date=new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;
+}
+
+/* Required: dayDate, tripEndDate, startTime. endTime='' keeps an open end.
+   endDayOffset is numeric 0 (same day, default) or explicitly supplied 1.
+   Returns {ok:true, plannedStartAt, plannedEndAt, plannedDurationMinutes}, or
+   {ok:false, error}. Failure never returns a partially usable planned range.
+   This validates a draft, not permission to persist or proof of a UI gesture. */
+function buildSchedulePlannedRange({dayDate,tripEndDate,startTime,endTime='',endDayOffset=0}={}){
+  if(!isSchedulePlannedDateKey(dayDate)) return {ok:false,error:'INVALID_DAY_DATE'};
+  if(!isSchedulePlannedDateKey(tripEndDate)) return {ok:false,error:'INVALID_TRIP_END_DATE'};
+  if(dayDate>tripEndDate) return {ok:false,error:'DAY_AFTER_TRIP_END'};
+  if(endDayOffset!==0&&endDayOffset!==1) return {ok:false,error:'INVALID_END_DAY_OFFSET'};
+  if(endDayOffset===1&&dayDate===tripEndDate) return {ok:false,error:'END_AFTER_TRIP_END'};
+
+  const plannedStartAt=typeof startTime==='string'?localDateTimeValue(dayDate,startTime):null;
+  if(!plannedStartAt) return {ok:false,error:'INVALID_START_TIME'};
+  if(endTime===''&&endDayOffset===1) return {ok:false,error:'END_TIME_REQUIRED'};
+
+  const endDate=new Date(`${dayDate}T00:00:00Z`);
+  const startCivilDayMs=endDate.getTime();
+  endDate.setUTCDate(endDate.getUTCDate()+endDayOffset);
+  const endDateKey=endDate.toISOString().slice(0,10);
+  if(!isSchedulePlannedDateKey(endDateKey)) return {ok:false,error:'INVALID_END_DATE'};
+  const plannedEndAt=endTime===''?null:
+    (typeof endTime==='string'?localDateTimeValue(endDateKey,endTime):null);
+  if(endTime!==''&&!plannedEndAt) return {ok:false,error:'INVALID_END_TIME'};
+
+  // Calendar dates and HH:mm have already been validated. Do not interpret
+  // planned strings as device-local instants or reject DST clock gaps.
+  let plannedDurationMinutes=null;
+  if(plannedEndAt!==null){
+    const [startHour,startMinute]=plannedStartAt.slice(11,16).split(':').map(Number);
+    const [endHour,endMinute]=plannedEndAt.slice(11,16).split(':').map(Number);
+    plannedDurationMinutes=(endDate.getTime()-startCivilDayMs)/60000
+      +(endHour*60+endMinute)-(startHour*60+startMinute);
+  }
+  if(plannedDurationMinutes!==null&&plannedDurationMinutes<=0){
+    return {ok:false,error:'END_NOT_AFTER_START'};
+  }
+  return {ok:true,plannedStartAt,plannedEndAt,plannedDurationMinutes};
+}
+
 function parseLegacySlotTime(slot={}){
   const label=String(slot.timeLabel||'');
   const matches=[...label.matchAll(/\b([0-2]?\d:[0-5]\d)\b/g)].map(m=>m[1]);
