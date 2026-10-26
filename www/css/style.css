@@ -640,6 +640,19 @@ body.camera-open{overflow:hidden!important;padding-bottom:0!important;background
 .schedule-field textarea{min-height:66px;max-height:120px;resize:vertical}
 .schedule-time-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;width:100%;max-width:100%;min-width:0;align-items:start}
 .schedule-time-grid>.schedule-field{min-width:0}
+.schedule-end-day{margin:-2px 0 12px}
+.schedule-end-day-controls{display:flex;align-items:center;gap:7px}
+.schedule-end-day-label{margin-right:3px;color:#59615a;font-size:11px;font-weight:850}
+.schedule-end-day-controls button,.schedule-next-day-suggestion button{appearance:none;border:1px solid #dcded8;border-radius:12px;background:#fff;color:#4f5b52;font:inherit;font-size:12px;font-weight:750;min-height:44px;padding:8px 16px;cursor:pointer}
+.schedule-end-day-controls button[aria-pressed="true"]{background:#e9efe7;border-color:#bbcdbf;color:#29362d}
+.schedule-end-day-controls button:disabled{opacity:.45;cursor:default}
+.schedule-end-day-controls.is-inactive .schedule-end-day-label{color:#8c918c}
+.schedule-end-day-controls button:focus-visible,.schedule-next-day-suggestion button:focus-visible{outline:2px solid #4f5b52;outline-offset:2px}
+.schedule-end-day-note{margin-top:6px;color:#737a74;font-size:10px;line-height:1.5}
+.schedule-time-preview{margin-top:8px;color:#435247;font-size:13px;font-weight:750;line-height:1.5;font-variant-numeric:tabular-nums}
+.schedule-next-day-suggestion{display:flex;align-items:center;flex-wrap:wrap;gap:5px 9px;margin-top:7px;padding:8px 10px;background:#f4f2ec;border-radius:12px;color:#59615a;font-size:11px;line-height:1.5}
+.schedule-next-day-suggestion[hidden],.schedule-end-day-note[hidden]{display:none}
+.schedule-next-day-suggestion button{flex:none;min-height:44px;padding:7px 12px;background:#fffefa}
 .schedule-details{width:100%;max-width:100%;box-sizing:border-box;border:1px solid #e2dfd6;border-radius:14px;background:#fff;margin-top:2px;overflow:hidden}
 .schedule-details summary{list-style:none;cursor:pointer;padding:11px 12px;font-size:12px;font-weight:850;color:#4f5b52;display:flex;align-items:center;justify-content:space-between}
 .schedule-details summary::-webkit-details-marker{display:none}
@@ -1101,3 +1114,178 @@ body.b34-time-picker-open{overflow:hidden;overscroll-behavior:none}
 .b34-time-sheet button:focus-visible{outline:2px solid #365443;outline-offset:-3px}
 @keyframes b34-sheet-in{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.b34-time-sheet{animation:none}}
+
+/* Home Architecture + Calendar v1: all new styles stay within these surfaces. */
+#home .home-welcome{padding:48px 4px 40px}
+#home h1{font-family:"YuMincho","Hiragino Mincho ProN",serif;font-size:29px;line-height:1.55;font-weight:600;letter-spacing:.02em;margin:16px 0 10px;color:var(--text)}
+#home .home-welcome>p,#home .home-live-heading>p{font-size:13px;line-height:1.8;color:var(--muted)}
+#home .home-create{display:block;width:100%;min-height:58px;border:0;border-radius:18px;background:#435247;color:#fffefa;font:inherit;font-size:16px;font-weight:750;margin-top:30px;box-shadow:0 8px 18px rgba(43,62,47,.10)}
+#home .home-recent{margin:8px 4px 32px}
+#home .home-recent h2{font-family:"YuMincho","Hiragino Mincho ProN",serif;font-weight:600;font-size:19px;margin:0 0 12px}
+#home .home-recent-trip{padding:20px 0;border-bottom:1px solid var(--editorial-line,#e7e2d8)}
+#home .home-recent-trip>p{margin:0 0 8px;font-size:11px;letter-spacing:.05em;color:var(--muted)}
+#home .home-empty{font-size:13px;color:var(--muted);padding:18px 0}
+#home .home-trip-action,#calendar .home-trip-action{display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;width:100%;border:0;background:transparent;padding:10px 0;min-height:44px;color:#34483b;font:inherit;font-weight:700;font-size:15px;overflow-wrap:anywhere}
+#home .home-trip-action>span,#calendar .home-trip-action>span{flex:none;font-size:19px;font-weight:400}
+#home .home-live-heading{padding:30px 4px 16px}
+#home .home-live-card{padding:24px 22px;margin:4px 0 20px;background:#fffefa;border:1px solid #e6e4dc;border-radius:22px;box-shadow:0 8px 22px rgba(44,53,42,.04)}
+#home .home-live-card h2{font-size:23px;font-weight:650;line-height:1.6;margin:12px 0}
+#home .home-live-card p{font-size:14px;line-height:1.8;color:var(--muted)}
+#home .home-live-card .home-live-time{font-size:13px;color:#435247;font-weight:650}
+#home .home-live-badge{display:inline-block;border-radius:20px;background:#e8eee6;color:#425b47;padding:6px 11px;font-size:11px;font-weight:750}
+#home button,#calendar button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+#home button:focus-visible,#calendar button:focus-visible{outline:2px solid #4a6652;outline-offset:3px}
+#calendar{padding:12px 0 90px;touch-action:pan-y;overflow-anchor:none}
+#calendar .calendar-page-heading{display:flex;align-items:center;gap:12px;margin:4px 0 28px}
+#calendar .calendar-page-heading h2{font-family:"YuMincho","Hiragino Mincho ProN",serif;font-size:26px;font-weight:600;margin:5px 0 0}
+#calendar .calendar-back,#calendar .calendar-today,#calendar .calendar-month-nav button{border:0;background:transparent;color:#435247;min-width:44px;min-height:44px;font:inherit;border-radius:12px}
+#calendar .calendar-back,#calendar .calendar-month-nav button{font-size:30px;font-weight:400}
+#calendar .calendar-today{margin-left:auto;font-size:13px;border:1px solid #d8dfd5;padding:8px 12px}
+#calendar .calendar-paper{background:#fffefa;border:1px solid #e7e3d9;border-radius:22px;padding:14px 10px 10px;box-shadow:0 6px 20px rgba(46,55,40,.035)}
+#calendar .calendar-month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+#calendar .calendar-month-nav h3{font-size:19px;font-weight:650;margin:0;letter-spacing:.04em}
+#calendar .calendar-weekdays,#calendar .calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));width:100%}
+#calendar .calendar-weekdays{color:#8a9187;font-size:10px;text-align:center;margin-bottom:8px}
+#calendar .calendar-weekdays span:first-child{color:#ad7b6a}
+#calendar .calendar-day{position:relative;isolation:isolate;appearance:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-width:0;min-height:48px;margin:0;border:0;border-radius:0;background:transparent;font:inherit;font-size:14px;font-weight:550;color:#364035;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:pan-y}
+/* Reserve only future day cells for drag selection; the surrounding page scrolls. */
+#calendar .calendar-day[data-range-eligible="true"]{touch-action:none}
+#calendar .calendar-day.is-outside{color:#a9afa6}
+#calendar .calendar-day-number{display:flex;align-items:center;justify-content:center;width:31px;height:31px;border:1px solid transparent;border-radius:50%;box-sizing:border-box;z-index:1}
+#calendar .calendar-day.is-today .calendar-day-number{border-color:#72836b}
+#calendar .calendar-day.is-selected .calendar-day-number{box-shadow:inset 0 0 0 2px #72836b}
+#calendar .calendar-day.in-range::before{content:"";position:absolute;z-index:0;left:0;right:0;top:5px;bottom:8px;background:#e7eee2}
+#calendar .calendar-day.range-start::before{left:50%}
+#calendar .calendar-day.range-end::before{right:50%}
+#calendar .calendar-day.range-start .calendar-day-number,#calendar .calendar-day.range-end .calendar-day-number{background:#465c49;color:#fff;border-color:#465c49;box-shadow:none}
+#calendar .calendar-day.editing-endpoint .calendar-day-number{outline:3px solid #b2c6a5;outline-offset:2px;transform:scale(1.08)}
+#calendar .calendar-trip-marker{position:absolute;bottom:4px;z-index:1;width:4px;height:4px;border-radius:50%;background:#8b997d}
+#calendar .calendar-hint{font-size:10px;color:#8a9187;line-height:1.7;margin:14px 8px 3px}
+#calendar .calendar-range-summary{padding:14px 14px 10px;margin:16px 0 0;border:1px solid #dbe3d5;border-radius:17px;background:#eef2e9}
+#calendar .calendar-range-dates{display:flex;align-items:center;justify-content:space-between;gap:5px}
+#calendar .calendar-range-dates button{border:1px solid transparent;border-radius:11px;padding:7px 10px;background:transparent;font:inherit;color:#344b39;font-size:13px;font-weight:700;min-height:48px}
+#calendar .calendar-range-dates small{display:block;font-size:10px;font-weight:500;color:#687b62;margin-bottom:5px}
+#calendar .calendar-range-dates button[aria-pressed="true"]{border-color:#72836b;background:#fffefa}
+#calendar .calendar-range-footer{display:flex;align-items:center;justify-content:space-between;color:#64755f;font-size:11px;margin-top:4px}
+#calendar .calendar-range-footer button{border:0;background:transparent;color:#64755f;font:inherit;min-height:44px;padding:8px}
+#calendar .calendar-details{margin:28px 4px 10px}
+#calendar .calendar-details h3{font-size:14px;font-weight:650;margin:0 0 14px;color:#626e5f}
+#calendar .calendar-trip-detail{padding:14px 0;border-bottom:1px solid #e3e4da}
+#calendar .calendar-trip-detail>p{font-family:"YuMincho","Hiragino Mincho ProN",serif;font-size:21px;margin:0 0 7px;color:#293b2e}
+#calendar .calendar-trip-detail>span{font-size:10px;color:#87917f}
+#calendar .calendar-trip-detail>div{display:flex;gap:24px;margin-top:8px}
+#calendar .calendar-trip-detail .home-trip-action{font-size:12px}
+#calendar .calendar-detail-note{font-size:12px;line-height:1.8;color:#7d8877}
+#calendar .calendar-day-create{border:1px solid #d4dece;background:#fffefa;color:#435c40;font:inherit;font-size:13px;font-weight:650;padding:12px 15px;border-radius:13px;min-height:46px;margin-top:9px}
+#calendar .calendar-create{position:fixed;z-index:32;right:max(20px,calc((100vw - 720px)/2 + 20px),env(safe-area-inset-right));bottom:calc(106px + env(safe-area-inset-bottom));background:#435940;color:#fffefa;border:0;border-radius:24px;padding:14px 23px;min-height:52px;font:inherit;font-size:15px;font-weight:750;box-shadow:0 7px 20px rgba(46,64,40,.22)}
+#calendar [hidden]{display:none!important}
+#calendar button:disabled{opacity:.35;cursor:default}
+#calendar .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+@media(max-width:360px){#home h1{font-size:25px}#calendar .calendar-paper{padding-left:5px;padding-right:5px}#calendar .calendar-day{min-height:45px}#calendar .calendar-range-dates button{font-size:12px;padding:7px 5px}}
+
+/* Record Archive Redesign v2 — Editorial Travel Archive, isolated from Live UI. */
+#record .record-archive-page{padding:20px 0 38px;color:#30362f}
+#record .record-archive-heading{margin:12px 4px 32px}
+#record .record-archive-heading h2{font-family:"YuMincho","Hiragino Mincho ProN",serif;font-size:36px;font-weight:500;letter-spacing:.04em;line-height:1.5;margin:13px 0 9px;overflow-wrap:anywhere}
+#record .record-archive-heading p{font-size:12px;color:#7a8176;letter-spacing:.06em;line-height:1.9;margin:0}
+#record .record-archive-list{display:grid;gap:36px}
+#record .record-trip-card{display:block;width:100%;padding:0;margin:0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer;touch-action:pan-y}
+#record .record-trip-card:focus-visible,#record .record-archive-page button:focus-visible,#record .record-archive-back:focus-visible{outline:3px solid #819577;outline-offset:5px;border-radius:16px}
+#record .record-card-photo{display:block;position:relative;aspect-ratio:16/10;background:#eaece5;border-radius:19px;overflow:hidden;isolation:isolate}
+#record .record-card-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;opacity:0;transition:opacity 260ms ease;pointer-events:none}
+#record .record-card-photo img.is-current{opacity:1}
+#record .record-photo-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;padding:20px;color:#87907f;font-size:11px;font-weight:400;letter-spacing:.04em;line-height:1.8;background:#eaece5}
+#record .record-photo-placeholder svg{width:32px;height:32px;fill:none;stroke:currentColor;stroke-width:1.2;opacity:.55}
+#record .record-card-photo [hidden],#record .record-archive-photo [hidden]{display:none!important}
+#record .record-card-copy{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:18px 4px 0}
+#record .record-card-copy strong{font-family:"YuMincho","Hiragino Mincho ProN",serif;font-weight:600;font-size:23px;line-height:1.5;overflow-wrap:anywhere}
+#record .record-card-arrow{align-self:center;color:#52664e;font-size:20px;padding:0 4px}
+#record .record-card-dates{grid-column:1/-1;font-size:11px;line-height:1.8;color:#7b8377;letter-spacing:.03em}
+#record .record-card-count{grid-column:1/-1;font-size:10px;color:#8b9285;letter-spacing:.06em}
+#record .record-current-trips{margin:0 4px 32px}
+#record .record-current-trips button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:15px;padding:15px 17px;border:0;border-radius:15px;background:#eef0e8;color:#43583f;font:inherit;text-align:left}
+#record .record-current-trips button+button{margin-top:8px}
+#record .record-current-trips small{display:block;font-size:10px;letter-spacing:.06em;margin-bottom:5px;color:#7b8873}
+#record .record-current-trips strong{font-weight:550;font-size:14px;line-height:1.6}
+#record .record-archive-empty{margin:34px 4px 70px;padding:36px 0;color:#7b8377;font-size:13px;line-height:1.9}
+#record .record-archive-empty p{font-family:"YuMincho","Hiragino Mincho ProN",serif;font-size:21px;color:#4f5f49;margin:0 0 12px}
+#record .record-archive-empty span{font-size:12px}
+#record .record-archive-back{background:none;border:0;color:#52684a;font:inherit;font-size:12px;min-height:44px;padding:8px 4px;text-align:left;touch-action:manipulation}
+#record .record-archive-add{float:right;background:none;border:0;color:#52684a;font:inherit;font-size:22px;min-height:44px;min-width:44px;touch-action:manipulation}
+#record .record-archive-page [data-record-item]{scroll-margin-top:24px}
+#record .record-archive-photo{position:relative;min-height:180px;background:#efeee7}
+#record .record-archive-photo img{position:relative;width:100%;height:auto;object-fit:contain;z-index:1;opacity:0}
+#record .record-archive-photo img.is-current{opacity:1}
+@media(max-width:360px){#record .record-archive-heading h2{font-size:31px}#record .record-card-copy strong{font-size:21px}}
+@media(prefers-reduced-motion:reduce){#record .record-card-photo img{transition:none}}
+
+/* UI Hotfix: reuse each decoded photo URL for a soft backdrop, never alter media. */
+#record .record-photo-backdrop{position:absolute;inset:-20px;background-position:center;background-size:cover;filter:blur(18px);transform:scale(1.06);opacity:0;transition:opacity 260ms ease;pointer-events:none}
+#record .record-photo-backdrop.is-current{opacity:1}
+@media(prefers-reduced-motion:reduce){#record .record-photo-backdrop{transition:none}}
+
+/* Calendar keeps its date fields and selected Trip above the existing safe-area dock. */
+body.calendar-view{overflow:hidden}
+.calendar-view .safe-header.editorial-header{padding-top:calc(10px + env(safe-area-inset-top));padding-bottom:4px}
+.calendar-view .brand-title{font-size:25px}
+.calendar-view .brand-tagline{display:none}
+#calendar.active{position:fixed;top:calc(66px + env(safe-area-inset-top));bottom:calc(86px + env(safe-area-inset-bottom));left:max(18px,calc((100vw - 720px)/2 + 18px),env(safe-area-inset-left));right:max(18px,calc((100vw - 720px)/2 + 18px),env(safe-area-inset-right));display:flex;flex-direction:column;gap:10px;padding:0;min-height:0}
+#calendar .calendar-page-heading{flex:none;margin:0;gap:8px;min-height:44px}
+#calendar .calendar-page-heading .page-kicker{display:none}
+#calendar .calendar-page-heading h2{font-size:23px;margin:0}
+#calendar .calendar-paper{display:flex;flex-direction:column;flex:1 1 auto;min-height:105px;padding:6px 8px;border-radius:18px;box-shadow:none}
+#calendar .calendar-month-nav{flex:none;margin:0;min-height:40px}
+#calendar .calendar-month-nav h3{font-size:17px}
+#calendar .calendar-weekdays{flex:none;margin:1px 0 4px;font-size:10px}
+#calendar .calendar-grid-scroll{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;min-height:0;padding:0 4px;touch-action:pan-y;scrollbar-width:thin}
+#calendar .calendar-grid{grid-auto-rows:40px}
+#calendar .calendar-day{min-height:40px;font-size:13px}
+#calendar .calendar-day-number{width:29px;height:29px}
+#calendar .calendar-hint{flex:none;font-size:9px;line-height:1.3;margin:5px 4px 1px}
+#calendar .calendar-day.has-trip:not(.in-range) .calendar-day-number{background:#f0eee5}
+#calendar .calendar-day.has-past-trip:not(.in-range) .calendar-day-number{background:#e9ede4}
+#calendar .calendar-trip-marker{width:14px;height:2px;border-radius:2px;bottom:3px;background:#7c8e72}
+#calendar .calendar-date-fields{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#calendar .calendar-date-fields button{display:flex;flex-direction:column;gap:5px;align-items:flex-start;min-width:0;min-height:60px;padding:9px 12px;border:1px solid #dce2d5;border-radius:12px;background:#fffefa;color:#435940;font:inherit}
+#calendar .calendar-date-fields span{font-size:10px;color:#7b8575}
+#calendar .calendar-date-fields strong{font-size:14px;font-weight:600;letter-spacing:.02em}
+#calendar .calendar-selection-actions{display:flex;flex:none;align-items:center;gap:12px}
+#calendar .calendar-selection-actions{min-height:40px}
+#calendar .calendar-range-summary{flex:1;margin:0;padding:0;border:0;background:none}
+#calendar .calendar-range-footer{margin:0;font-size:11px;gap:8px;justify-content:flex-start}
+#calendar .calendar-range-footer button{min-height:40px}
+#calendar .calendar-create{position:static;flex:none;min-height:40px;padding:8px 20px;font-size:13px;border-radius:20px;box-shadow:none}
+#calendar .calendar-details{flex:none;margin:0;position:relative;min-height:112px}
+#calendar .calendar-details h3{font-size:11px;margin:0 0 6px;line-height:1.5}
+#calendar .calendar-trip-count{position:absolute;right:0;top:0;font-size:9px;color:#7b8575}
+#calendar .calendar-trip-choices{display:flex;overflow-x:auto;gap:10px;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+#calendar .calendar-trip-detail{flex:0 0 100%;min-width:0;scroll-snap-align:start;border:0;padding:8px 12px 3px;background:#eff1e9;border-radius:13px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+#calendar .calendar-trip-detail>p{font-size:17px;line-height:1.4;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#calendar .calendar-trip-detail>span{font-size:10px;margin-left:8px}
+#calendar .calendar-trip-detail>div{grid-column:1/-1;justify-content:space-between;gap:10px;margin:0}
+#calendar .calendar-trip-detail .home-trip-action{min-height:44px;padding:10px 0;font-size:12px}
+#calendar .calendar-details>.calendar-detail-note{font-size:11px;margin:6px 0}
+#calendar .calendar-day-create{min-height:44px;margin:0;padding:8px 12px;font-size:12px}
+
+/* Three independent native-scroll wheels; no text input or platform picker. */
+.calendar-date-picker[hidden]{display:none!important}
+.calendar-date-picker{position:fixed;inset:0;z-index:150;display:flex;align-items:flex-end;justify-content:center;background:rgba(24,32,27,.35);padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+body.calendar-picker-open{overflow:hidden}
+.calendar-picker-sheet{--wheel-view:220px;width:100%;max-width:520px;max-height:100%;overflow-y:auto;border-radius:24px 24px 0 0;background:#fbfaf6;padding:18px 20px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -8px 40px rgba(25,35,25,.1)}
+.calendar-picker-sheet header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px}
+.calendar-picker-sheet h2{margin:0;font-family:"YuMincho","Hiragino Mincho ProN",serif;font-size:24px;font-weight:500}
+.calendar-picker-sheet header p{font-size:12px;color:#68775f;margin:0}
+.calendar-wheel-labels,.calendar-wheels{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:8px;text-align:center}
+.calendar-wheel-labels{font-size:10px;color:#7b8575;margin-bottom:5px}
+.calendar-wheels{position:relative}
+.calendar-wheels::before{content:"";position:absolute;left:0;right:0;top:calc(50% - 22px);height:44px;border-radius:10px;background:#eaf0e4;pointer-events:none}
+.calendar-wheel{position:relative;z-index:1;height:var(--wheel-view);overflow-y:scroll;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;scroll-snap-type:y mandatory;scrollbar-width:none;padding:calc((var(--wheel-view) - 44px)/2) 0;outline-offset:-2px}
+.calendar-wheel::-webkit-scrollbar{display:none}
+.calendar-wheel-option{height:44px;line-height:44px;scroll-snap-align:center;font-size:22px;font-variant-numeric:tabular-nums;color:#8a9383;user-select:none;-webkit-user-select:none}
+.calendar-wheel-option.is-chosen{color:#294834;font-weight:600}
+#calendarPickerError{min-height:32px;margin:8px 0;font-size:12px;color:#9b543e;line-height:1.5}
+.calendar-picker-sheet footer{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.calendar-picker-sheet footer button{min-height:46px;border:0;border-radius:13px;font:inherit;font-size:14px;color:#41563b;background:#ecefe6}
+.calendar-picker-sheet #calendarPickerConfirm{background:#435940;color:#fff}
+.calendar-picker-sheet button:disabled{opacity:.4}
+@media(max-height:650px){.calendar-view .safe-header.editorial-header{display:none}#calendar.active{top:calc(12px + env(safe-area-inset-top))}.calendar-picker-sheet{--wheel-view:132px}#calendar.active{gap:6px}#calendar .calendar-hint{display:none}#calendar .calendar-date-fields button{min-height:54px;padding:7px 10px}#calendar .calendar-details{min-height:104px}}

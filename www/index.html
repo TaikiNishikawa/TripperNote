@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Tripper Note</title>
-<link rel="stylesheet" href="css/style.css?v=260B34">
+<link rel="stylesheet" href="css/style.css?v=ui-checkpoint-v1">
 <style id="b124-lodging-field-hotfix">
 /* v2.5.8-B.1.2.4: hard-lock lodging date/time proportions on iOS WKWebView. */
 .lodging-modal-fields .lodging-date-grid{display:flex!important;grid-template-columns:none!important;gap:8px!important;width:100%!important;min-width:0!important;max-width:100%!important;overflow:hidden!important;}
@@ -26,7 +26,7 @@
         <div class="brand-title">Tripper Note</div>
         <div class="brand-tagline">旅で、日常をやさしく変えていく。</div>
       </div>
-      <button class="calendar-button" aria-label="カレンダー" onclick="showToast('カレンダーは次工程で実装します')">
+      <button class="calendar-button" aria-label="カレンダー" onclick="openCalendar()">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v3M17 2v3M3.5 9h17M5.5 4.5h13a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2Z"/></svg>
       </button>
     </div>
@@ -55,17 +55,34 @@
       </div>
     </section>
 
-    <section id="home" class="screen active editorial-home">
-      <div id="homeMagazineHero" class="magazine-hero"></div>
-      <div class="editorial-section-head"><span>NEXT</span><button id="homeItineraryBtn" class="editorial-link">すべて見る</button></div>
-      <div class="card next editorial-next" id="homeNextCard"></div>
-      <div class="card compact editorial-flow-card">
-        <div class="list-header"><div class="title">このあとの予定</div><button class="editorial-link" onclick="document.getElementById('homeItineraryBtn').click()">すべて見る</button></div>
-        <div id="homeFlow"></div>
+    <section id="home" class="screen active editorial-home"></section>
+
+    <section id="calendar" class="screen calendar-page" aria-labelledby="calendarTitle">
+      <div class="calendar-page-heading">
+        <button type="button" class="calendar-back" onclick="showScreen('home','home')" aria-label="ホームに戻る">‹</button>
+        <div><div class="page-kicker">YOUR DAYS</div><h2 id="calendarTitle">カレンダー</h2></div>
+        <button type="button" class="calendar-today" onclick="calendarGoToday()">今日</button>
       </div>
-      <div id="transportBookingCard" class="card transport-card hidden"></div>
-      <div class="editorial-quote"><div>旅は、きっと、</div><div>日常をやさしく変えていく。</div><small>A SMALL TRIP MAKES A RICHER YOU.</small></div>
-      <div class="home-meta-hidden"><span id="homeHeading"></span><span id="homePhaseValue"></span><span id="homePhaseDate"></span><span id="homePlanName"></span></div>
+      <div class="calendar-paper">
+        <div class="calendar-month-nav">
+          <button id="calendarPrevious" type="button" onclick="calendarMoveMonth(-1)" aria-label="前の月">‹</button>
+          <h3 id="calendarMonthTitle" aria-live="polite"></h3>
+          <button id="calendarNext" type="button" onclick="calendarMoveMonth(1)" aria-label="次の月">›</button>
+        </div>
+        <div class="calendar-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+        <div class="calendar-grid-scroll"><div id="calendarGrid" class="calendar-grid" role="group" aria-label="日付を選択" aria-describedby="calendarHint"></div></div>
+        <p id="calendarHint" class="calendar-hint">なぞって範囲を選択 · 端は長押しで調整</p>
+      </div>
+      <div class="calendar-date-fields" aria-label="旅行期間">
+        <button id="calendarStartDateField" type="button" data-picker-edge="start" aria-haspopup="dialog"><span>開始日</span><strong>未選択</strong></button>
+        <button id="calendarEndDateField" type="button" data-picker-edge="end" aria-haspopup="dialog"><span>終了日</span><strong>未選択</strong></button>
+      </div>
+      <div class="calendar-selection-actions">
+        <div id="calendarRangeSummary" class="calendar-range-summary" hidden></div>
+        <button id="calendarCreate" type="button" class="calendar-create" onclick="calendarCreateTrip()" hidden>＋ 作成</button>
+      </div>
+      <div id="calendarRangeStatus" class="visually-hidden" role="status"></div>
+      <div id="calendarDetails" class="calendar-details" aria-live="polite"></div>
     </section>
 
     <section id="spots" class="screen">
@@ -112,12 +129,27 @@
   <nav class="bottom floating-dock" aria-label="メインナビゲーション">
     <div class="bottom-inner">
       <button class="nav-btn" data-tab="trips" onclick="showScreen('trips','trips')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7M5 7h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm4 0v14m6-14v14"/></svg></span><span>旅行</span></button>
-      <button class="nav-btn" data-tab="record" onclick="showScreen('record','record')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm8 0v4h4M8 11h6M8 15h6"/></svg></span><span>記録</span></button>
+      <button class="nav-btn" data-tab="record" onclick="openRecordArchive()"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm8 0v4h4M8 11h6M8 15h6"/></svg></span><span>記録</span></button>
       <button class="nav-btn home-tab active" data-tab="home" onclick="showScreen('home','home')"><span class="home-icon-wrap"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7v9H6v-9Zm5 9v-6h6v6"/></svg></span></span><span>ホーム</span></button>
       <button class="nav-btn" data-tab="spots" onclick="showScreen('spots','spots')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.2 6-11a6 6 0 1 0-12 0c0 5.8 6 11 6 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg></span><span>スポット</span></button>
       <button class="nav-btn" data-tab="profile" onclick="showScreen('profile','profile')"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0"/></svg></span><span>マイページ</span></button>
     </div>
   </nav>
+</div>
+
+<!-- Calendar civil-date picker: draft only until Confirm. -->
+<div id="calendarDatePicker" class="calendar-date-picker" hidden>
+  <section class="calendar-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="calendarPickerTitle">
+    <header><h2 id="calendarPickerTitle">開始日</h2><p id="calendarPickerPreview" aria-live="polite"></p></header>
+    <div class="calendar-wheel-labels" aria-hidden="true"><span>年</span><span>月</span><span>日</span></div>
+    <div class="calendar-wheels">
+      <div class="calendar-wheel" data-wheel="year" role="spinbutton" tabindex="0" aria-label="年"></div>
+      <div class="calendar-wheel" data-wheel="month" role="spinbutton" tabindex="0" aria-label="月"></div>
+      <div class="calendar-wheel" data-wheel="day" role="spinbutton" tabindex="0" aria-label="日"></div>
+    </div>
+    <p id="calendarPickerError" role="status"></p>
+    <footer><button type="button" id="calendarPickerCancel">キャンセル</button><button type="button" id="calendarPickerConfirm">確定</button></footer>
+  </section>
 </div>
 
 <!-- Trip editor / creator -->
@@ -263,6 +295,19 @@
         </label>
       </div>
       <div id="scheduleTimeError" class="schedule-field-error schedule-grid-error" aria-live="polite"></div>
+      <div class="schedule-end-day">
+        <div id="scheduleEndDayControls" class="schedule-end-day-controls" role="group" aria-labelledby="scheduleEndDayLabel">
+          <span id="scheduleEndDayLabel" class="schedule-end-day-label">終了日</span>
+          <button id="scheduleEndDaySame" type="button" aria-pressed="true" onclick="setScheduleEndDayOffset(0)">当日</button>
+          <button id="scheduleEndDayNext" type="button" aria-pressed="false" onclick="setScheduleEndDayOffset(1)">翌日</button>
+        </div>
+        <div id="scheduleEndDayLimit" class="schedule-end-day-note" hidden>旅行最終日を越える予定は現在未対応</div>
+        <div id="scheduleTimePreview" class="schedule-time-preview" aria-live="polite"></div>
+        <div id="scheduleNextDaySuggestion" class="schedule-next-day-suggestion" hidden>
+          <span id="scheduleNextDaySuggestionText" aria-live="polite"></span>
+          <button type="button" onclick="setScheduleEndDayOffset(1)">翌日にする</button>
+        </div>
+      </div>
 
       <div class="schedule-field schedule-place-field">
         <div class="schedule-place-heading">
@@ -401,6 +446,8 @@
 <script src="js/storage.js?v=260B34"></script>
 <script src="js/navigation.js?v=260B34"></script>
 <script src="js/mediaStore.js?v=260B34"></script>
-<script src="js/app.js?v=260B34"></script>
+<script src="js/app.js?v=ui-checkpoint-v1"></script>
+<script src="js/calendar.js?v=ui-checkpoint-v1"></script>
+<script src="js/recordArchive.js?v=ui-checkpoint-v1"></script>
 </body>
 </html>

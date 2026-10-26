@@ -85,10 +85,15 @@ function getHomeTrip(now=new Date()){
 
 function setActiveTab(tab){ document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab)); }
 function showScreen(id,tab){
+  if(id!=='calendar') calendarCancelGesture();
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id)?.classList.add('active');
   if(tab) setActiveTab(tab);
-  window.scrollTo({top:0,behavior:'smooth'});
+  calendarScreenChanged(id);
+  if(id==='home') renderHome();
+  if(id==='calendar') renderCalendar();
+  if(typeof recordArchiveScreenChanged==='function') recordArchiveScreenChanged(id);
+  window.scrollTo({top:0,behavior:id==='calendar'?'instant':'smooth'});
 }
 function activateTrip(tripId,openDetail=false){
   if(!getTripById(tripId)) return;
@@ -162,38 +167,7 @@ function mapHomeCandidate(tripId,day,planId,slotId){
   const trip=getTripById(tripId); const c=selectedCandidate(getSlotFromTrip(trip,day,planId,slotId)); const url=c?buildMapSearchUrl(c):''; if(url) openExternal(url); else alert('目的地を登録してください。');
 }
 function openHomeTripDetail(tripId,day){ activateTrip(tripId,false); openTripDetail(day); }
-function renderHome(){
-  const ctx=getHomeContext(),trip=ctx.trip;
-  const nextCard=document.getElementById('homeNextCard'),flow=document.getElementById('homeFlow'),booking=document.getElementById('transportBookingCard'),hero=document.getElementById('homeMagazineHero');
-  if(!trip){
-    if(hero) hero.innerHTML=`<div class="magazine-hero-empty"><span>YOUR NEXT JOURNEY</span><h2>次の旅をつくる</h2><p>旅程を登録すると、ここがあなたの旅の表紙になります。</p><button class="hero-cta" onclick="showScreen('trips','trips');openNewTripEditor()">旅行を追加</button></div>`;
-    document.getElementById('homeHeading').textContent='Tripper Note'; document.getElementById('homePhaseValue').textContent='旅行を追加'; document.getElementById('homePhaseDate').textContent=''; document.getElementById('homePlanName').textContent='予定なし';
-    nextCard.innerHTML='<div class="time">WELCOME</div><div class="title">次の旅行を登録しましょう</div><div class="desc">旅行ページの「＋旅行を追加」から日程と予定を作成できます。</div><div class="actions one"><button class="btn nav" onclick="showScreen(\'trips\',\'trips\');openNewTripEditor()">＋ 旅行を追加</button></div>';
-    flow.innerHTML='<div class="small">旅行を登録すると、進行中または直近の旅行がここに自動表示されます。</div>'; if(booking) booking.style.display='none'; document.getElementById('homeItineraryBtn').onclick=()=>showScreen('trips','trips'); return;
-  }
-  const day=getDayFromTrip(trip,ctx.day),plan=getActivePlanFromTrip(trip,ctx.day);
-  if(hero){
-    const phaseLabel=ctx.phase==='before'?'次の旅':ctx.phase==='during'?'旅の途中':'最近の旅';
-    hero.innerHTML=`<div class="magazine-hero-bg"></div><div class="magazine-hero-shade"></div><div class="magazine-hero-copy"><div class="hero-kicker">${phaseLabel}</div><h2>${escapeHtml(cleanDisplayName(trip.title))}</h2><div class="hero-dates">${escapeHtml(trip.startDate.replaceAll('-','.'))} – ${escapeHtml(trip.endDate.replaceAll('-','.'))}</div><div class="hero-caption">${ctx.phase==='during'?'いま、この旅の時間を歩いている。':'やわらかな風が吹く、旅の余白へ。'}</div><div class="hero-place">TRIPPER NOTE</div></div>`;
-  }
-  document.getElementById('homePhaseValue').textContent=`${cleanDisplayName(trip.title)} · ${ctx.label}`;
-  document.getElementById('homePhaseDate').textContent=ctx.dateLabel;
-  document.getElementById('homeHeading').textContent=ctx.phase==='before'?'次の旅行':ctx.phase==='after'?'最近の旅行':'今日の旅行';
-  document.getElementById('homePlanName').textContent=plan?`Plan ${plan.id.toUpperCase()} · ${plan.name}`:'予定なし';
-  if(ctx.phase==='after') nextCard.innerHTML=`<div class="time">TRIP COMPLETE</div><div class="title">${escapeHtml(cleanDisplayName(trip.title))}の旅行は終了しました</div><div class="desc">写真やメモを「記録」から振り返れます。</div><div class="actions one"><button class="btn nav" onclick="showScreen('record','record')">${iconSvg('record')} 記録を見る</button></div>`;
-  else if(ctx.next){
-    const c=selectedCandidate(ctx.next),buttons=[];
-    if(c?.transportMode!=='none') buttons.push(`<button class="btn ${c?.transportMode==='car'?'nav':'walk'}" onclick="navigateHomeCandidate('${trip.id}',${ctx.day},'${plan.id}','${ctx.next.id}')">${transportIcon(c?.transportMode)} ${navPreferenceLabel(c?.transportMode)}</button>`);
-    if(c?.destination||c?.address||c?.googleMapsUrl||c?.name) buttons.push(`<button class="btn secondary" onclick="mapHomeCandidate('${trip.id}',${ctx.day},'${plan.id}','${ctx.next.id}')">${iconSvg('pin')} 地図</button>`);
-    nextCard.innerHTML=`<div class="time">${ctx.phase==='before'?'FIRST':'NEXT'} · ${escapeHtml(slotTimeLabel(ctx.next))}</div><div class="title">${escapeHtml(cleanDisplayName(c?.name||'予定'))}</div><div class="desc">${escapeHtml(candidateSummary(c))}</div>${c?.destination?`<div class="destination-line">${iconSvg('pin')} ${escapeHtml(c.destination)}</div>`:''}${buttons.length?`<div class="actions ${buttons.length===1?'one':''}">${buttons.join('')}</div>`:''}`;
-  }else{
-    const lodging=day?.lodging; nextCard.innerHTML=`<div class="time">TODAY COMPLETE</div><div class="title">今日の予定はひと区切り</div><div class="desc">${lodging?`${escapeHtml(lodging.name)}でゆっくり過ごす時間です。`:'次の予定はありません。'}</div>`;
-  }
-  const slots=(plan?.slots||[]).slice().sort((a,b)=>slotSortMinutes(a)-slotSortMinutes(b));
-  const nextId=ctx.next?.id,nowMin=new Date().getHours()*60+new Date().getMinutes();
-  flow.innerHTML=slots.map(s=>{ const c=selectedCandidate(s),done=ctx.phase==='during'&&slotSortMinutes(s)<=nowMin&&s.id!==nextId,cls=s.id===nextId?'current':done?'done':''; return `<div class="progress ${cls}"><span class="progress-dot"></span><div><div class="progress-title">${escapeHtml(cleanDisplayName(c?.name||'予定'))}</div><div class="progress-meta">${escapeHtml(slotTimeLabel(s))}${s.id===nextId?' · 次の予定':''}</div></div></div>`; }).join('')||'<div class="small">予定がありません。</div>';
-  document.getElementById('homeItineraryBtn').onclick=()=>openHomeTripDetail(trip.id,ctx.day); renderTransportBooking(trip);
-}
+function renderHome(){ renderHomeOverview(); }
 function renderTransportBooking(trip=getHomeTrip()){
   const box=document.getElementById('transportBookingCard'),bookings=trip?.transportBookings||[]; if(!bookings.length){ box.style.display='none'; return; }
   const now=new Date(),future=bookings.map(b=>({...b,_dt:new Date(`${b.date}T${b.departure||'00:00'}:00`)})).filter(b=>b._dt>now).sort((a,b)=>a._dt-b._dt)[0];
@@ -289,8 +263,8 @@ function openTripEditor(focusSection='basic',tripId=null){
   document.getElementById('editTripName').value=trip.title; document.getElementById('editStartDate').value=trip.startDate; document.getElementById('editEndDate').value=trip.endDate;
   editingPlanDay=Math.min(editingDay||1,trip.days.length); renderEditorDay(); openEditorModal(focusSection);
 }
-function openNewTripEditor(){
-  EDIT_DATA=deepClone(APP_DATA); EDITOR_MODE='create'; const blank=createBlankTrip({}); EDIT_DATA.trips.push(blank); EDIT_DATA.activeTripId=blank.id;
+function openNewTripEditor(initialDates={}){
+  EDIT_DATA=deepClone(APP_DATA); EDITOR_MODE='create'; const blank=createBlankTrip(initialDates); EDIT_DATA.trips.push(blank); EDIT_DATA.activeTripId=blank.id;
   const deleteBtn=document.getElementById('tripDeleteBtn'); if(deleteBtn) deleteBtn.style.display='none';
   document.getElementById('editorModeLabel').textContent='NEW TRIP'; document.getElementById('editorTitle').textContent='旅行を追加';
   document.getElementById('editTripName').value=blank.title; document.getElementById('editStartDate').value=blank.startDate; document.getElementById('editEndDate').value=blank.endDate;
@@ -305,6 +279,7 @@ function openEditorModal(focusSection){
   },60);
 }
 function closeTripEditor(){
+  CALENDAR_UI.pendingCreation=false;
   EDIT_DATA=null;
   document.getElementById('lodgingEditorModal')?.classList.remove('open');
   document.getElementById('editorModal').classList.remove('open');
@@ -403,7 +378,9 @@ function saveTripEditor(){
   if(!EDIT_DATA) return; saveCurrentLodgingToEdit(); const trip=getTrip('edit'),start=document.getElementById('editStartDate').value,end=document.getElementById('editEndDate').value;
   if(!start||!end||end<start){ alert('旅行日程を確認してください。終了日は開始日以降にしてください。'); return; }
   trip.title=document.getElementById('editTripName').value.trim()||'名称未設定の旅行'; syncTripDays(trip,start,end);
-  APP_DATA=normalizeAppData(EDIT_DATA); EDIT_DATA=null; persistAppData(); editingDay=1; closeTripEditor(); renderAll(); showToast(EDITOR_MODE==='create'?'✓ 旅行を追加しました':'✓ 旅行を保存しました');
+  APP_DATA=normalizeAppData(EDIT_DATA); EDIT_DATA=null; persistAppData(); editingDay=1;
+  if(EDITOR_MODE==='create'&&CALENDAR_UI.pendingCreation) calendarClearRange();
+  closeTripEditor(); renderAll(); showToast(EDITOR_MODE==='create'?'✓ 旅行を追加しました':'✓ 旅行を保存しました');
 }
 function resetAllData(){ if(!confirm('この端末のTripper Noteデータを初期状態に戻しますか？')) return; APP_DATA=normalizeAppData(DEFAULT_APP_DATA); persistAppData(); closeTripEditor(); renderAll(); }
 
@@ -478,7 +455,7 @@ function changeNavPreference(mode,value){ setNavigationPreference(mode,value); r
 
 function showToast(message,duration=1900){ const el=document.getElementById('saveToast'); el.textContent=message; el.classList.add('show'); clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>el.classList.remove('show'),duration); }
 function renderAll(){ renderHeader(); renderTrips(); renderHome(); renderTripDetail(); renderNavigationSettings(); }
-function preventAccidentalZoom(){ let lastTouchEnd=0; document.addEventListener('touchend',e=>{ const now=Date.now(); if(now-lastTouchEnd<=300) e.preventDefault(); lastTouchEnd=now; },{passive:false}); document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false}); }
+function preventAccidentalZoom(){ let lastTouchEnd=0; document.addEventListener('touchend',e=>{ if(e.target.closest?.('#calendar, #calendarDatePicker, #record .record-archive-page')) return; const now=Date.now(); if(now-lastTouchEnd<=300) e.preventDefault(); lastTouchEnd=now; },{passive:false}); document.addEventListener('dblclick',e=>{if(!e.target.closest?.('#calendar, #calendarDatePicker, #record .record-archive-page')) e.preventDefault();},{passive:false}); }
 
 document.addEventListener('DOMContentLoaded',()=>{ loadNote(); preventAccidentalZoom(); const photoInput=document.getElementById('slotCoverPhotoInput'); if(photoInput) photoInput.addEventListener('change',handleSlotCoverPhotoSelected); renderAll(); });
 
@@ -1141,6 +1118,7 @@ function renderTripDetail(){
 
 function renderAll(){
   renderHeader(); renderTrips(); renderHome(); renderTripDetail(); renderRecordScreen(); renderSpotsScreen(); renderProfileScreen(); renderNavigationSettings(); loadNote();
+  if(document.getElementById('calendar')?.classList.contains('active')) renderCalendar();
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -2187,10 +2165,10 @@ function b2TextBlockHtml(block){
   const time=b1TimelineIsoTime(block.timelineTime||block.createdAt)||'時刻不明';
   return `<article class="b2-text-block"><div class="b2-text-meta"><span>TEXT</span><strong>${escapeHtml(time)}</strong></div><p>${escapeHtml(block.text||'')}</p><div class="b1-record-actions"><button onclick="b2EditTextBlock('${block.id}')">編集</button><button onclick="b2EditTextTime('${block.id}')">時刻</button><button class="danger-soft" onclick="b2DeleteTextBlock('${block.id}')">削除</button></div></article>`;
 }
-function b1BuildTimelineSkeleton(trip){
+function b1BuildTimelineSkeleton(trip,{readOnly=false,recordMatches=b1RecordMatchesSchedule}={}){
   if(!trip) return {days:[],recordCount:0,scheduleCount:0,unplannedCount:0};
   const records=(trip.records||[]).slice().sort((a,b)=>b1RecordSortAt(a)-b1RecordSortAt(b));
-  const textBlocks=b2TripTextBlocks(trip).slice().sort((a,b)=>b2BlockSortAt(a)-b2BlockSortAt(b));
+  const textBlocks=(readOnly?(APP_DATA.coreV21?.blocks||[]).filter(block=>block?.type==='text'&&String(block.tripId||'')===String(trip.id)):b2TripTextBlocks(trip)).slice().sort((a,b)=>b2BlockSortAt(a)-b2BlockSortAt(b));
   const consumed=new Set(),consumedBlocks=new Set();
   const result={days:[],recordCount:records.length+textBlocks.length,scheduleCount:0,unplannedCount:0};
   (trip.days||[]).forEach(day=>{
@@ -2198,11 +2176,11 @@ function b1BuildTimelineSkeleton(trip){
     const slots=(plan?.slots||[]).slice().sort((a,b)=>slotSortMinutes(a)-slotSortMinutes(b));
     const items=[];
     slots.forEach((slot,index)=>{
-      const linked=records.filter(record=>b1RecordMatchesSchedule(record,day,plan,slot)).sort((a,b)=>b1RecordSortAt(a)-b1RecordSortAt(b));
+      const linked=records.filter(record=>recordMatches(record,day,plan,slot)).sort((a,b)=>b1RecordSortAt(a)-b1RecordSortAt(b));
       linked.forEach(record=>consumed.add(record.id));
       const linkedBlocks=textBlocks.filter(block=>String(block?.scheduleRef?.slotId||'')===String(slot.id)&&Number(block?.scheduleRef?.day)===Number(day.day)&&(!block?.scheduleRef?.planId||String(block.scheduleRef.planId)===String(plan.id))).sort((a,b)=>b2BlockSortAt(a)-b2BlockSortAt(b));
       linkedBlocks.forEach(block=>consumedBlocks.add(block.id));
-      const candidate=selectedCandidate(slot);
+      const candidate=readOnly?(slot.candidates?.find(candidate=>candidate.id===slot.selectedCandidateId)||(slot.candidates?.length===1?slot.candidates[0]:null)):selectedCandidate(slot);
       const meta=slot.v21||{};
       const next=slots[index+1]||null;
       const inferredEnd=slot.endTime||next?.startTime||'';
@@ -3411,8 +3389,8 @@ openTripEditor=function(focusSection='basic',tripId=null){
   syncTripDateDisplays();
 };
 const b3OriginalOpenNewTripEditor=openNewTripEditor;
-openNewTripEditor=function(){
-  b3OriginalOpenNewTripEditor();
+openNewTripEditor=function(initialDates={}){
+  b3OriginalOpenNewTripEditor(initialDates);
   syncTripDateDisplays();
 };
 const b3OriginalUpdateEditorTripDates=updateEditorTripDates;
@@ -3502,6 +3480,52 @@ function b3CandidateSeed(mode,slot,candidate){
   return candidate||blankCandidate('TEMP');
 }
 
+/* Cross-Day Schedule v1 Step B: endDayOffset lives only in the editor context.
+   Form serialization, validation and persistence remain unchanged until Step C. */
+function scheduleEditorPlannedEndDayOffset(slot){
+  const startDate=String(slot?.v21?.plannedStartAt||'').split('T')[0];
+  const endDate=String(slot?.v21?.plannedEndAt||'').split('T')[0];
+  if(!isSchedulePlannedDateKey(startDate)||!isSchedulePlannedDateKey(endDate)) return 0;
+  // UTC midnights number calendar days only; host timezone / DST is irrelevant.
+  return new Date(`${endDate}T00:00:00Z`).getTime()-new Date(`${startDate}T00:00:00Z`).getTime()===86400000?1:0;
+}
+
+function updateScheduleEndDayUi(){
+  const ctx=scheduleEditorContext; if(!ctx) return;
+  const start=document.getElementById('scheduleStart').value;
+  const end=document.getElementById('scheduleEnd').value;
+  const dayDate=getDay(ctx.dayNum,ctx.source)?.date;
+  const tripEndDate=getTrip(ctx.source)?.endDate;
+  const validDates=isSchedulePlannedDateKey(dayDate)&&isSchedulePlannedDateKey(tripEndDate);
+  const canUseNextDay=validDates&&dayDate<tripEndDate;
+  if(!canUseNextDay) ctx.endDayOffset=0;
+  const same=document.getElementById('scheduleEndDaySame');
+  const next=document.getElementById('scheduleEndDayNext');
+  same.disabled=!end;
+  next.disabled=!end||!canUseNextDay;
+  same.setAttribute('aria-pressed',String(ctx.endDayOffset===0));
+  next.setAttribute('aria-pressed',String(ctx.endDayOffset===1));
+  document.getElementById('scheduleEndDayControls').classList.toggle('is-inactive',!end);
+  const isLastDay=validDates&&dayDate===tripEndDate;
+  document.getElementById('scheduleEndDayLimit').hidden=!isLastDay;
+  if(isLastDay) next.setAttribute('aria-describedby','scheduleEndDayLimit');
+  else next.removeAttribute('aria-describedby');
+  const endLabel=end.replace(/^0(?=\d:)/,'');
+  document.getElementById('scheduleTimePreview').textContent=`${start||'開始未入力'} → ${end?(ctx.endDayOffset===1?'翌':'')+endLabel:'終了なし'}`;
+  const suggest=!!(start&&end&&ctx.endDayOffset===0&&canUseNextDay&&timeToMinutes(end)<timeToMinutes(start));
+  document.getElementById('scheduleNextDaySuggestionText').textContent=suggest?`翌日 ${endLabel}として設定しますか？`:'';
+  document.getElementById('scheduleNextDaySuggestion').hidden=!suggest;
+}
+
+function setScheduleEndDayOffset(offset){
+  if(!scheduleEditorContext||scheduleEditorBusy||(offset!==0&&offset!==1)) return;
+  updateScheduleEndDayUi();
+  const button=document.getElementById(offset===1?'scheduleEndDayNext':'scheduleEndDaySame');
+  if(button.disabled) return;
+  scheduleEditorContext.endDayOffset=offset;
+  updateScheduleEndDayUi();
+}
+
 openScheduleEditor=function(mode,dayNum,planId,slotId='',source='edit',candidateId=''){
   const normalizedMode=['new-slot','edit-schedule','add-candidate','edit-candidate'].includes(mode)?mode:'edit-schedule';
   scheduleEditorContext={mode:normalizedMode,dayNum:Number(dayNum),planId,slotId:slotId||'',source:source||'edit',candidateId:candidateId||''};
@@ -3526,6 +3550,8 @@ openScheduleEditor=function(mode,dayNum,planId,slotId='',source='edit',candidate
   b1SetField('scheduleActivity',normalizedMode==='add-candidate'?'':(c.activity||''));
   b1SetField('scheduleStart',start);
   b1SetField('scheduleEnd',end);
+  scheduleEditorContext.endDayOffset=scheduleEditorPlannedEndDayOffset(slot);
+  updateScheduleEndDayUi();
   b1SetField('schedulePlace',normalizedMode==='add-candidate'?'':(place==='新しい候補'?'':place));
   b1SetField('scheduleTransport',c.transportMode||'car');
   b1SetField('scheduleMemo',normalizedMode==='add-candidate'?'':(c.memo||''));
@@ -3722,6 +3748,11 @@ function b3BindScheduleEditorUx(){
   body?.addEventListener('focusin',e=>{
     const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement) b3ScrollFieldIntoScheduleView(t,false);
   });
+  ['scheduleStart','scheduleEnd'].forEach(id=>{
+    const input=document.getElementById(id);
+    input?.addEventListener('input',updateScheduleEndDayUi);
+    input?.addEventListener('change',updateScheduleEndDayUi);
+  });
   ['scheduleActivity','scheduleStart','scheduleEnd','scheduleLat','scheduleLon'].forEach(id=>{
     document.getElementById(id)?.addEventListener('input',()=>{
       if(id==='scheduleActivity'){ b3SetFieldError('scheduleActivityError',''); b3MarkField(id,false); }
@@ -3893,15 +3924,15 @@ function b3TimelineActions(item){
 }
 
 const b3BaseBuildTimelineSkeleton=b1BuildTimelineSkeleton;
-b1BuildTimelineSkeleton=function(trip){
-  const result=b3BaseBuildTimelineSkeleton(trip);
+b1BuildTimelineSkeleton=function(trip,options){
+  const result=b3BaseBuildTimelineSkeleton(trip,options);
   (result.days||[]).forEach(dayEntry=>(dayEntry.items||[]).forEach(item=>{
     if(item.type==='schedule') item.tripId=trip.id;
   }));
   return result;
 };
 
-b1TimelineItemHtml=function(item){
+b1TimelineItemHtml=function(item,{readOnly=false}={}){
   if(item.type==='unplanned'){
     const allTimes=[...(item.records||[]).map(r=>r.capturedAt||r.createdAt||''),...(item.blocks||[]).map(b=>b.timelineTime||b.createdAt||'')].filter(Boolean).sort((a,b)=>new Date(a)-new Date(b));
     const firstTime=b1TimelineIsoTime(allTimes[0]);
@@ -3916,7 +3947,7 @@ b1TimelineItemHtml=function(item){
   const actual=b1ScheduleActualLabel(meta);
   const statusLabel=b1TimelineStatusLabel(status);
   const policy=meta?.timePolicy==='fixed'?'固定':'調整可';
-  const actions=b3TimelineActions({...item,status});
+  const actions=readOnly?'':b3TimelineActions({...item,status});
   return `<section class="b1-timeline-group b1-schedule-group status-${escapeHtml(status)}"><div class="b1-timeline-rail"><span></span></div><div class="b1-timeline-card"><div class="b1-group-top"><div><div class="b1-group-kicker">SCHEDULE · ${escapeHtml(statusLabel)}</div><h3>${escapeHtml(cleanDisplayName(candidate?.name||candidate?.destination||'予定'))}</h3></div><div class="b1-group-time">${escapeHtml(slotTimeLabel(slot))}</div></div><div class="b1-schedule-meta"><span>${escapeHtml(policy)}</span>${actual?`<span>${escapeHtml(actual)}</span>`:''}${candidate?.destination?`<span>${iconSvg('pin')} ${escapeHtml(candidate.destination)}</span>`:''}</div>${candidate?.activity?`<p class="b1-group-sub">${escapeHtml(candidate.activity)}</p>`:''}${actions}<div class="b1-group-records">${(records?.length||blocks?.length)?[...(records||[]).map(record=>({at:b1RecordSortAt(record),html:b1TimelineRecordHtml(record)})),...(blocks||[]).map(block=>({at:b2BlockSortAt(block),html:b2TextBlockHtml(block)}))].sort((a,b)=>a.at-b.at).map(x=>x.html).join(''):'<div class="b1-empty-inside">この予定の記録はまだありません。</div>'}</div></div></section>`;
 };
 
