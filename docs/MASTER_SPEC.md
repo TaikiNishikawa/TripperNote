@@ -42,6 +42,8 @@ Cross-Day Schedule v1はFounder Decisionにより正式仕様として採用し�
 
 2026-10-26 UI Hotfixは、Record写真の同一画像ぼかし背景、Calendar常設日付欄と3列ドラム、過去Trip詳細をスクロール不要で開く配置とマーカー改善を採用する。既存Calendar長押しの週跨ぎはFounder実機CONFIRMED。新しい3修正は実装・自動確認対象で、実機はUNKNOWN。関連の未commit Home／Calendar／Record／Cross-Day Bを必要なtests・docsと1つのGitHub CheckpointにすることをFounderが承認した（DEC-036〜039）。Storage／schema／migrationを変更せず、Cross-Day Step Cは接続しない。
 
+2026-10-27のTimeline Photo Full-Frame UI Fixは、Founder実機報告の写真上下見切れを対象に、過去・進行中Tripの共通写真componentを自然な縦横比の全体表示へ修正した。Record一覧の固定枠スライドショーは維持する。IMPLEMENTED・自動確認済み、FounderのiPhone実機確認完了報告により本FixはCONFIRMED（個別回帰項目全体へは広げない）。詳細はDEC-040、[UI_UX.md](UI_UX.md)、[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。前回Checkpointは`84cd26e`としてcommit・push済み。今回のFounder承認により、本Fixの関連8ファイルをcommit・pushする。
+
 ## 状態の区別
 「確定仕様」は実装済みを意味しない。「実装済み」は実機合格を意味しない。履歴に明記された確認結果だけを実機確認済みとして扱う。未記載の技術方式、画面詳細、数値、DBスキーマは未確定のまま残す。
 

@@ -124,6 +124,23 @@ Calendarは表示領域内で日付グリッドを可変高さにし、常設日
 
 Checkpoint対象は関連ソース・tests・docsのみ。ZIP・生成画像・秘密情報はGitに含めず、DB schema／migration／初期化／Native変更とCross-Day Step C保存連携は行わない。
 
+## Timeline Photo Full-Frame UI Fix（2026-10-27）
+状態：IMPLEMENTED・自動確認済み／CONFIRMED（本Fix）。2026-10-27、FounderからTimeline Photo Full-Frame UI FixのiPhone実機確認完了とGitHub保存承認を受領した。根拠はFounderの完了報告であり、AIが実機を再検証した意味ではない。個別端末・写真・操作ごとの結果は報告されていないため、無関係な機能や回帰項目全体の実機合格へ広げない。修正開始時は`feature/design-refresh`、HEAD `84cd26e`、working tree clean。
+
+原因：有効な共通componentは`b1RecordMediaHtml`の`.b1-timeline-photo`。親の`aspect-ratio:16/10`と`overflow:hidden`が残り、過去Tripの画像だけを`height:auto`にしても親枠で切られていた。進行中Tripには画像の`height:100%`／`object-fit:cover`も適用されていた。古い未使用rendererだけの修正ではなく、両Timelineが使うcomponentを確認した。
+
+修正：親の固定比率・切り取りを除去し、画像を幅100%・高さauto・contain・EXIF尊重へ統一。極端な縦写真は全体を収めて表示高さを制限する。`b1RememberTimelinePhotoSize`が実際にデコードされた寸法をDOM内へ保持し、Archiveの画面外解放・再表示時の高さを維持する。保存データと画像読み込み方式は変更しない。`index.html`はCSS／app.jsのcache識別子だけを更新した。
+
+検証（実ユーザーデータ不使用）：
+
+- `tests/record-inline-ui.test.cjs`に8件追加し28/28成功。過去／進行中の縦・横・正方形・複数写真、START／TIME DIARY、既存操作、極端な縦写真、画面外の解放／再読込、遅延／失敗／inline画像、EXIF orientation 6の生成JPEG、320px／390pxとsafe-area相当34pxでの最終操作ボタンをassert。
+- Home／Calendar／Cross-Day B browser 35/35と合わせ、隔離Chromeで63/63成功。Record一覧の固定寸法・3秒・blur・fade・停止、Live／Quick Record、Home／Calendar／Range、Step Bの復元・提案・Cancelを回帰確認した。
+- Cross-Day A 31件・Home／Calendar 40件・Record 24件はAsia/Tokyo・America/New_York・Europe/Londonで各95/95成功、計285実行。
+- 全JS／CJS syntax check、git diff --check、差分レビュー成功。生成写真のBlob、APP_DATA、localStorage、IndexedDB Coreの操作前後snapshotを比較した。北杜・小淵沢12枚や実ユーザーのDBにはアクセスしていない。
+- 生成画像の上端・下端を識別できるブラウザ表示を目視。元画像・時刻・所属、Storage／schema／migration／Native、Cross-Day A／B保存処理、Calendar、Record再生moduleは変更なし。
+
+実装上の制約：画像寸法が未知の初回表示には高さ変化があり得る。極端な縦写真は全体を収めるため表示幅が小さくなる。新しい拡大ビューアや画像編集は追加していない。Founderの実機確認完了により、関連8ファイルのみを`fix: display full photos in trip timeline`でcommitし、`origin/feature/design-refresh`へ通常pushすることが承認された。既存データは操作せず、リモート分岐時は停止する。
+
 ## 更新ルール / SPEC GAP
 - 新しい実装・実機結果は対象版、確認項目、結果、根拠、残課題を記録する。日付が不明なら不明のままにする。
 - 原本再照合、Baselineの個別テスト記録は未完。再起動保持はB.3.4のText時刻・同じActive所属についてのみ上記のとおり確認済み。

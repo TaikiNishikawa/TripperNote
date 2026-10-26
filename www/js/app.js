@@ -2241,6 +2241,17 @@ function b1RecordMediaHtml(record){
   const hydrate=key?` data-v258-media-key="${escapeHtml(key)}"`:'';
   return `<div class="b1-timeline-photo"><img src="${src}"${hydrate} alt="旅の記録写真"></div>`;
 }
+function b1RememberTimelinePhotoSize(image){
+  const frame=image.closest('.b1-timeline-photo');
+  if(!frame||!image.naturalWidth||!image.naturalHeight) return;
+  // Decoded dimensions include EXIF orientation. Keep geometry in this DOM
+  // only, so archive URL release/reload cannot collapse the scroll position.
+  frame.style.setProperty('--timeline-photo-ratio',`${image.naturalWidth} / ${image.naturalHeight}`);
+  frame.dataset.photoSized='1';
+}
+document.addEventListener('load',event=>{
+  if(event.target.matches?.('.b1-timeline-photo img')) b1RememberTimelinePhotoSize(event.target);
+},true);
 function b1RecordActionsHtml(record){
   const cameraRecord=record.captureSource==='tripper_camera';
   const editAction=cameraRecord?`editCameraRecord('${record.id}')`:`editRecord('${record.id}')`;

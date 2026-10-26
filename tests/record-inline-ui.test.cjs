@@ -50,7 +50,7 @@ beforeEach(async()=>{
 const card=id=>page.locator(`.record-trip-card[data-record-open="${id}"]`);
 const open=()=>page.locator('.nav-btn[data-tab="record"]').click();
 const shown=async id=>{await card(id).scrollIntoViewIfNeeded();await page.waitForFunction(id=>{const p=RECORD_ARCHIVE_UI.players.find(p=>p.element.dataset.recordOpen===id);return p?.visible&&p.element.dataset.photoState==='ready';},id);};
-const snapshot=()=>page.evaluate(async()=>({app:JSON.stringify(APP_DATA),local:JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key=>[key,localStorage.getItem(key)]))),core:JSON.stringify(await coreReadFoundation()),media:await Promise.all(APP_DATA.trips.flatMap(t=>t.records).map(async r=>{const blob=await mediaGet(r.mediaKey);return[r.mediaKey,blob?await blob.text():null];}))}));
+const snapshot=()=>page.evaluate(async()=>({app:JSON.stringify(APP_DATA),local:JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key=>[key,localStorage.getItem(key)]))),core:JSON.stringify(await coreReadFoundation()),media:await Promise.all(APP_DATA.trips.flatMap(t=>t.records).map(async r=>{const blob=await mediaGet(r.mediaKey);return[r.mediaKey,blob?Array.from(new Uint8Array(await blob.arrayBuffer())):null];}))}));
 async function shot(name){if(process.env.UI_ARTIFACT_DIR){fs.mkdirSync(process.env.UI_ARTIFACT_DIR,{recursive:true});await page.waitForTimeout(300);await page.screenshot({path:path.join(process.env.UI_ARTIFACT_DIR,name+'.png')});}}
 
 test('Record tab opens newest-first Trip archive, compact current Trip, no chips/live/debug controls',async()=>{
@@ -201,6 +201,114 @@ test('Portrait and landscape photos keep sharp full foreground over the same blu
   assert.equal(dims[0].height,dims[1].height);assert.ok(dims.some(x=>x.ratio<1)&&dims.some(x=>x.ratio>1));assert.deepEqual(await snapshot(),before);
   await page.evaluate(()=>{window.hotfixPlayers=RECORD_ARCHIVE_UI.players.slice();showScreen('home','home');});
   assert.equal(await page.evaluate(()=>hotfixPlayers.every(p=>p.backgrounds.every(b=>b.style.backgroundImage===''))),true);
+});
+
+// Full-frame Timeline regression uses the same real renderer in past and live Trips.
+async function seedTimelinePhotos(tripId,sizes){
+  await page.evaluate(async({tripId,sizes})=>{
+    const trip=getTripById(tripId),source=getTripById('past');
+    if(tripId==='live')trip.days[0].plans[0].slots=[{...structuredClone(source.days[0].plans[0].slots[0]),v21:{status:'upcoming'}}];
+    trip.records=[];
+    for(let i=0;i<sizes.length;i++){
+      const [width,height]=sizes[i],id=`full-frame-${i}`;
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#d5dfca"/><rect width="100%" height="${height/8}" fill="#486551"/><rect y="${height*7/8}" width="100%" height="${height/8}" fill="#ac7957"/><text x="12" y="${height/2}" font-size="24">TOP / FULL FRAME / BOTTOM</text></svg>`;
+      const preview='data:image/svg+xml;base64,'+btoa(svg);
+      await mediaPut(id,new Blob([svg],{type:'image/svg+xml'}));
+      trip.records.push({id,mediaKey:id,tripId,day:1,planId:'a',slotId:'A',kind:i===0?'start':'entry',isCover:i===0,mediaType:'image',mimeType:'image/svg+xml',previewDataUrl:preview,capturedAt:`${trip.startDate}T09:${String(i).padStart(2,'0')}:00`,createdAt:`${trip.startDate}T09:${String(i).padStart(2,'0')}:01`,captureSource:'tripper_camera',placeName:'湖畔',comment:'風の音を聞きながら。'});
+    }
+    APP_DATA=normalizeAppData(APP_DATA);
+  },{tripId,sizes});
+}
+async function readyTimelinePhoto(index){
+  const frame=page.locator('#record .b1-timeline-photo').nth(index);
+  await frame.scrollIntoViewIfNeeded();
+  await page.waitForFunction(index=>{const img=document.querySelectorAll('#record .b1-timeline-photo img')[index];return img&&!img.hidden&&img.complete&&img.naturalWidth>0&&img.parentElement.dataset.photoSized==='1';},index);
+  return frame;
+}
+async function photoGeometry(frame){
+  return frame.evaluate(el=>{
+    const img=el.querySelector('img'),r=el.getBoundingClientRect(),image=img.getBoundingClientRect(),card=el.closest('.b1-timeline-record');
+    return {width:r.width,height:r.height,imageHeight:image.height,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,fit:getComputedStyle(img).objectFit,orientation:getComputedStyle(img).imageOrientation,ratio:getComputedStyle(el).aspectRatio,limit:Math.min(innerHeight*.85,960),metaBelow:card.querySelector('.b1-record-meta').getBoundingClientRect().bottom<=r.top+1,copyBelow:card.querySelector('.b1-record-copy').getBoundingClientRect().top>=r.bottom-1,cardContains:card.getBoundingClientRect().bottom>=card.querySelector('.b1-record-copy').getBoundingClientRect().bottom-1};
+  });
+}
+for(const tripId of ['past','live'])test(`${tripId} Timeline shows full portrait, landscape and square photos, START/TIME DIARY and all actions`,async()=>{
+  await seedTimelinePhotos(tripId,[[600,800],[900,500],[600,600]]);const before=await snapshot();
+  await page.evaluate(id=>recordArchiveOpenTrip(id),tripId);
+  const group=page.locator('#record .b1-schedule-group').filter({has:page.locator('.b1-timeline-record')});
+  assert.equal(await group.locator('.b1-timeline-record').count(),3);
+  assert.match(await group.locator('.b1-record-meta').first().textContent(),/START.*09:00.*代表写真/s);
+  assert.match(await group.locator('.b1-record-meta').nth(1).textContent(),/TIME DIARY.*09:01/s);
+  const heights=[];
+  for(let i=0;i<3;i++){
+    const frame=await readyTimelinePhoto(i),g=await photoGeometry(frame);
+    assert.equal(g.fit,'contain');assert.equal(g.orientation,'from-image');assert.ok(Math.abs(g.height-g.width*g.naturalHeight/g.naturalWidth)<1,JSON.stringify(g));
+    assert.ok(Math.abs(g.height-g.imageHeight)<1);assert.ok(g.metaBelow&&g.copyBelow&&g.cardContains);
+    const article=frame.locator('..');assert.deepEqual(await article.locator('.b1-record-actions button').allTextContents(),['編集',i===0?'✓ 代表写真':'代表写真にする','削除']);
+    assert.match(await article.locator('.b1-record-copy').textContent(),/湖畔.*風の音/s);heights.push(g.height);
+    if(i===0)await shot(`timeline-${tripId}-portrait`);
+  }
+  assert.ok(heights[0]>heights[2]&&heights[2]>heights[1]);
+  assert.ok((await group.boundingBox()).height>heights.reduce((a,b)=>a+b,0));
+  if(tripId==='live')assert.equal(await page.locator('.b2-quick-record-bar').count(),1);
+  assert.deepEqual(await snapshot(),before);
+});
+test('Exceptionally tall Timeline photo is bounded but its entire image remains contained',async()=>{
+  await seedTimelinePhotos('past',[[300,6000]]);const before=await snapshot();await page.evaluate(()=>recordArchiveOpenTrip('past'));
+  const frame=await readyTimelinePhoto(0),g=await photoGeometry(frame);
+  assert.equal(g.fit,'contain');assert.ok(Math.abs(g.height-g.limit)<1);assert.ok(g.imageHeight<=g.limit+1);assert.ok(g.copyBelow&&g.cardContains);
+  assert.ok(g.imageHeight*g.naturalWidth/g.naturalHeight<g.width); // Entire image fits without clipping or stretching.
+  await shot('timeline-tall-contained');assert.deepEqual(await snapshot(),before);
+});
+test('Archive photo release and reload retain measured height and the visible scroll position',async()=>{
+  await seedTimelinePhotos('past',[[600,800],[900,500],[600,600]]);await page.evaluate(()=>recordArchiveOpenTrip('past'));
+  const first=await readyTimelinePhoto(0),original=(await first.boundingBox()).height;
+  await readyTimelinePhoto(2);await page.waitForTimeout(150);
+  assert.equal(await first.locator('img').getAttribute('src'),null);
+  assert.ok(Math.abs((await first.boundingBox()).height-original)<1);
+  const anchor=await page.locator('.b1-record-copy').nth(2).boundingBox(),scroll=await page.evaluate(()=>scrollY);
+  await page.waitForTimeout(350);assert.ok(Math.abs((await page.locator('.b1-record-copy').nth(2).boundingBox()).y-anchor.y)<1);assert.equal(await page.evaluate(()=>scrollY),scroll);
+  await readyTimelinePhoto(0);assert.ok(Math.abs((await first.boundingBox()).height-original)<1);
+});
+test('Delayed and unavailable originals keep a safe placeholder then size from decoded image without data writes',async()=>{
+  await seedTimelinePhotos('past',[[600,800]]);const before=await snapshot();await page.evaluate(()=>{window.fullFrameGet=mediaGet;window.fullFrameResolve=null;mediaGet=key=>new Promise(resolve=>{fullFrameResolve=()=>fullFrameGet(key).then(resolve);});});
+  await page.evaluate(()=>recordArchiveOpenTrip('past'));const frame=page.locator('.b1-timeline-photo').first();await frame.scrollIntoViewIfNeeded();
+  await page.waitForFunction(()=>!!fullFrameResolve);assert.ok((await frame.boundingBox()).height>=160);assert.match(await frame.textContent(),/読み込み中/);
+  await page.evaluate(async()=>{await fullFrameResolve();mediaGet=fullFrameGet;});await readyTimelinePhoto(0);
+  const g=await photoGeometry(frame);assert.ok(Math.abs(g.height-g.width*4/3)<1);assert.deepEqual(await snapshot(),before);
+  await page.evaluate(()=>{const r=getTripById('past').records[0];r.mediaKey='unavailable';r.previewDataUrl='';});const unavailable=await snapshot();
+  await page.evaluate(()=>renderRecordScreen());await frame.scrollIntoViewIfNeeded();
+  await page.waitForFunction(()=>document.querySelector('.b1-timeline-photo').dataset.photoState==='unavailable');assert.match(await frame.textContent(),/写真を表示できません/);
+  assert.equal(await frame.locator('..').locator('.b1-record-actions button').count(),3);
+  assert.deepEqual(await snapshot(),unavailable);
+});
+test('Inline legacy photo without a mediaKey uses the same natural sizing',async()=>{
+  await seedTimelinePhotos('past',[[600,800]]);await page.evaluate(()=>{getTripById('past').records[0].mediaKey='';recordArchiveOpenTrip('past');});
+  const g=await photoGeometry(await readyTimelinePhoto(0));assert.ok(Math.abs(g.height-g.width*4/3)<1);assert.equal(g.fit,'contain');
+});
+test('EXIF orientation is decoded once and respected by Timeline sizing without changing JPEG bytes',async()=>{
+  await seedTimelinePhotos('past',[[600,800]]);
+  await page.evaluate(async()=>{
+    const canvas=document.createElement('canvas');canvas.width=400;canvas.height=200;const ctx=canvas.getContext('2d');ctx.fillStyle='#456a55';ctx.fillRect(0,0,400,200);
+    const raw=Uint8Array.from(atob(canvas.toDataURL('image/jpeg').split(',')[1]),x=>x.charCodeAt(0));
+    const exif=new Uint8Array([255,225,0,34,69,120,105,102,0,0,73,73,42,0,8,0,0,0,1,0,18,1,3,0,1,0,0,0,6,0,0,0,0,0,0,0]);
+    const jpeg=new Blob([raw.slice(0,2),exif,raw.slice(2)],{type:'image/jpeg'});await mediaPut('exif-test',jpeg);
+    const record=getTripById('past').records[0];record.mediaKey='exif-test';record.previewDataUrl='';record.mimeType='image/jpeg';
+  });const before=await snapshot();await page.evaluate(()=>recordArchiveOpenTrip('past'));
+  const g=await photoGeometry(await readyTimelinePhoto(0));assert.equal(g.naturalWidth,200);assert.equal(g.naturalHeight,400);assert.ok(Math.abs(g.height-g.width*2)<1);assert.deepEqual(await snapshot(),before);
+});
+test('320px and 390px Timeline scrolling exposes last photo actions above safe-area dock and Live quick bar',async()=>{
+  for(const tripId of ['past','live'])for(const width of [320,390]){
+    await page.setViewportSize({width,height:844});await seedTimelinePhotos(tripId,[[600,800],[600,800],[600,800]]);await page.evaluate(id=>recordArchiveOpenTrip(id),tripId);
+    for(let i=0;i<3;i++)await readyTimelinePhoto(i);
+    // Add 34px to both reserved body space and dock as a safe-area equivalent.
+    const style=await page.addStyleTag({content:'body{padding-bottom:106px!important}.bottom.floating-dock{padding-bottom:34px!important}.b2-quick-record-bar{bottom:114px!important}'});
+    await page.evaluate(()=>window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));await page.waitForTimeout(150);
+    const actions=await page.locator('.b1-record-actions').last().boundingBox(),dock=await page.locator('.bottom').boundingBox();
+    assert.ok(actions.y>=0&&actions.y+actions.height<dock.y,`${tripId} ${width}`);
+    if(tripId==='live'){const quick=await page.locator('.b2-quick-record-bar').boundingBox();assert.ok(actions.y+actions.height<quick.y);}
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await shot(`timeline-bottom-${tripId}-${width}`);await style.evaluate(el=>el.remove());
+  }
+  assert.deepEqual(errors,[]);
 });
 
 }

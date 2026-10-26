@@ -1046,7 +1046,12 @@ body.modal-open{overflow:hidden;max-width:100vw;overscroll-behavior:none}
 .b1-timeline-record.is-cover{border-color:#b8c7bd}
 .b1-record-meta{display:flex;align-items:center;gap:7px;padding:9px 11px;color:#788078;font-size:9px;font-weight:850;letter-spacing:.08em}
 .b1-record-meta strong{margin-left:auto;color:#333d36;font-size:11px;letter-spacing:0}.b1-record-meta em{font-style:normal;padding:3px 6px;border-radius:999px;background:#e7efe9;color:#385446;letter-spacing:0}
-.b1-timeline-photo{background:#e7e9e5;aspect-ratio:16/10;overflow:hidden}.b1-timeline-photo img{width:100%;height:100%;object-fit:cover;display:block}
+/* Timeline photos keep their own proportions; only exceptionally tall images
+   are fitted inside a viewport-sized maximum. This does not style Trip slides. */
+.b1-timeline-photo{--timeline-photo-limit:min(85vh,960px);position:relative;width:100%;min-width:0;background:#e7e9e5;aspect-ratio:var(--timeline-photo-ratio,auto);max-height:var(--timeline-photo-limit)}
+@supports(height:1svh){.b1-timeline-photo{--timeline-photo-limit:min(85svh,960px)}}
+.b1-timeline-photo:not([data-photo-sized]){min-height:160px}
+.b1-timeline-photo img{width:100%;height:auto;max-height:var(--timeline-photo-limit);object-fit:contain;image-orientation:from-image;display:block}
 .b1-record-copy{padding:11px}.b1-record-place{display:flex;align-items:center;gap:6px;color:#4f5b53;font-size:11px;font-weight:800}.b1-record-place .ui-icon{width:14px;height:14px}.b1-record-copy p{margin:8px 0 0;color:#505750;font-size:12px;line-height:1.55}
 .b1-record-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.b1-record-actions button{appearance:none;border:1px solid #d9ddd8;background:#fff;color:#536056;border-radius:999px;padding:7px 10px;font-size:9.5px;font-weight:850}.b1-record-actions button.danger-soft{color:#8b5b4f;background:#fbf4f1;border-color:#ead8d2}
 @media(max-width:390px){.b1-timeline-card{padding:14px}.b1-group-top h3{font-size:20px}.b1-group-top{gap:8px}.b1-group-time{font-size:11px}.b1-timeline-summary>div{padding:10px 7px}.b1-timeline-summary strong{font-size:19px}}
@@ -1213,7 +1218,7 @@ body.b34-time-picker-open{overflow:hidden;overscroll-behavior:none}
 #record .record-archive-back{background:none;border:0;color:#52684a;font:inherit;font-size:12px;min-height:44px;padding:8px 4px;text-align:left;touch-action:manipulation}
 #record .record-archive-add{float:right;background:none;border:0;color:#52684a;font:inherit;font-size:22px;min-height:44px;min-width:44px;touch-action:manipulation}
 #record .record-archive-page [data-record-item]{scroll-margin-top:24px}
-#record .record-archive-photo{position:relative;min-height:180px;background:#efeee7}
+#record .record-archive-photo{position:relative;background:#efeee7}
 #record .record-archive-photo img{position:relative;width:100%;height:auto;object-fit:contain;z-index:1;opacity:0}
 #record .record-archive-photo img.is-current{opacity:1}
 @media(max-width:360px){#record .record-archive-heading h2{font-size:31px}#record .record-card-copy strong{font-size:21px}}

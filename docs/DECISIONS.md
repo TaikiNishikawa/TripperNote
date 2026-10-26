@@ -95,6 +95,13 @@
 
 実機証拠：既存Calendarの長押しドラッグによる週跨ぎ変更はFounder報告によりCONFIRMED。写真余白と過去Trip導線の問題は実機での発見として記録し、新修正の実機合格とは扱わない。
 
+## Timeline Photo Full-Frame UI Fix（2026-10-27記録）
+根拠：FounderのiPhone実機確認に基づく今回の明示指示。前回のCheckpointは`84cd26e`としてcommit・push済み。初回修正段階ではcommit／pushを行わず停止したが、2026-10-27のFounder実機確認完了報告により本FixのGitHub保存が承認された。関連8ファイルのみを`fix: display full photos in trip timeline`でcommit・通常pushし、リモート分岐時は停止する。
+
+| ID | 状態 | 決定内容 | 理由・影響 |
+|---|---|---|---|
+| DEC-040 | DECIDED | 過去・進行中Tripの共通Timeline写真は全体表示・自然な比率と高さへ統一する。極端な縦写真は高さを制限しつつ全体を閲覧可能にする。 | 上下の見切れを解消。START／TIME DIARY・時刻・代表写真・場所・説明・既存操作、Schedule／DAY／ChoiceSlot、スクロールとsafe-areaを維持。Record一覧の固定枠・3秒再生・ぼかし背景は変更しない。画像・時刻・保存データ・schemaを変更しない。修正／自動テスト／差分レビュー後にFounder実機確認を経てGitHubへ保存する。 |
+
 ## 未決定
 未記載のDB詳細、将来機能の詳細。Cross-Day Schedule v1はDEC-019〜023の範囲で正式採用し、日時FoundationとEditor UIのみ実装済み。2日以上続く予定、旅行最終日を越える予定、日付を跨いで遅れて開始する新ルール、翌日側の継続カード表示、新しい一般的なRecord再所属アルゴリズムは未確定・v1対象外。B.3.4のPicker方式と局所的なToast時間はDEC-012のとおり採用・実装済みだが、未確認項目を実機合格へ格上げしない。
 
